@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>トレーニング</title>
+<style>
+
+:root{
+  --bg:#f6f7f9; --card:#ffffff; --line:#e3e6ea; --text:#15181d;
+  --muted:#6b7480; --accent:#e8590c; --good:#1f9d55; --bad:#c0392b;
+  --free:#6d47d9; --machine:#e8590c; --body:#217f8f;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#0f1115; --card:#181b21; --line:#272c34; --text:#e6e8eb;
+    --muted:#8b93a1; --accent:#ff6b2c; --good:#3ddc84; --bad:#ff6b6b;
+    --free:#a68bff; --machine:#ff6b2c; --body:#4cc4d8; }
+}
+*{box-sizing:border-box}
+body{margin:0;padding:16px 14px 96px;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  font-size:15px;line-height:1.6;-webkit-text-size-adjust:100%}
+.wrap{max-width:640px;margin:0 auto}
+h1{font-size:20px;margin:0 0 2px}
+.updated{color:var(--muted);font-size:12px;margin-bottom:12px}
+h2{font-size:14px;margin:22px 0 8px;padding-left:9px;border-left:3px solid var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 13px;margin-bottom:9px}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+.seg button{padding:10px 8px;border-radius:10px;border:1px solid var(--line);
+  background:var(--card);color:var(--text);font-size:14px;font-family:inherit;cursor:pointer;text-align:center}
+.seg button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+.seg .cap{display:block;font-size:10px;opacity:.8;font-weight:400}
+.hint{font-size:12px;color:var(--muted);margin-bottom:10px}
+.group{font-size:11px;font-weight:700;letter-spacing:.03em;margin:16px 0 6px;display:flex;align-items:center;gap:7px}
+.group::after{content:"";flex:1;height:1px;background:var(--line)}
+.group.free{color:var(--free)} .group.machine{color:var(--machine)} .group.body{color:var(--body)}
+.card.k-free{border-left:4px solid var(--free)}
+.card.k-machine{border-left:4px solid var(--machine)}
+.card.k-body{border-left:4px solid var(--body)}
+.kt{display:inline-block;font-size:10px;padding:1px 7px;border-radius:99px;margin-left:6px;
+  vertical-align:middle;border:1px solid currentColor}
+.kt.free{color:var(--free)} .kt.machine{color:var(--machine)} .kt.body{color:var(--body)}
+.ex-head{display:flex;align-items:baseline;gap:8px}
+.pri{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:14px}
+.ex-name{font-weight:700;font-size:15px;flex:1;cursor:pointer;text-decoration:underline;
+  text-decoration-style:dotted;text-underline-offset:3px;text-decoration-color:var(--muted)}
+.target{font-variant-numeric:tabular-nums;font-weight:700;color:var(--accent);white-space:nowrap}
+.sub{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:2px}
+.tag{display:inline-block;font-size:10px;padding:1px 7px;border-radius:99px;
+  border:1px solid var(--line);color:var(--muted);margin-left:6px;vertical-align:middle}
+.stale{border-color:var(--accent);color:var(--accent)}
+.inputs{display:none;gap:6px;margin-top:10px}
+.card.open .inputs{display:flex}
+.inputs label{flex:1;font-size:10px;color:var(--muted)}
+input,select,textarea{font-family:inherit;background:var(--bg);color:var(--text);
+  border:1px solid var(--line);border-radius:8px}
+.inputs input{width:100%;padding:9px 6px;font-size:16px;text-align:center;font-variant-numeric:tabular-nums}
+.btns{display:flex;gap:6px;margin-top:8px}
+button{flex:1;padding:10px;font-size:14px;font-family:inherit;border-radius:9px;
+  border:1px solid var(--line);background:var(--card);color:var(--text);cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+button.ghost{flex:0 0 auto;padding:10px 12px;color:var(--muted)}
+.card.done{opacity:.55}
+.card.done .ex-name::before{content:"✓ ";color:var(--good)}
+.logged{font-size:13px;color:var(--good);font-variant-numeric:tabular-nums;margin-top:6px}
+.setline{font-size:13px;color:var(--muted);margin-top:4px}
+.note{font-size:12px;color:var(--muted);margin-top:5px}
+.addform{display:none}
+.addform.open{display:block}
+.addform .row{display:flex;gap:6px;margin-top:8px}
+.addform .row label{flex:1;font-size:10px;color:var(--muted)}
+.addform input,.addform select{width:100%;padding:9px 8px;font-size:16px}
+.bar{position:fixed;left:0;right:0;bottom:0;padding:10px 14px calc(10px + env(safe-area-inset-bottom));
+  background:var(--card);border-top:1px solid var(--line)}
+.bar .inner{max-width:640px;margin:0 auto;display:flex;gap:8px;align-items:center}
+.count{font-size:12px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+textarea#out{width:100%;height:140px;margin-top:10px;padding:10px;font-size:12px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;
+  align-items:flex-end;justify-content:center}
+.modal.on{display:flex}
+.sheet{background:var(--card);width:100%;max-width:640px;border-radius:16px 16px 0 0;
+  padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:82vh;overflow:auto}
+.sheet h3{margin:0 0 2px;font-size:17px}
+.sheet .kicker{font-size:11px;color:var(--muted);margin-bottom:12px}
+.sheet h4{font-size:12px;color:var(--muted);margin:14px 0 4px;font-weight:600}
+.sheet ul{margin:0;padding-left:18px;font-size:14px}
+.sheet li{margin-bottom:4px}
+.warn{border-left:3px solid var(--accent);padding-left:10px;font-size:13px;margin-top:6px}
+footer{color:var(--muted);font-size:11px;margin-top:24px;text-align:center}
+a{color:var(--accent)}
+
+/* ===== ログ画面 ===== */
+#tab-log .card{padding:14px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 10px;text-align:center}
+.kpi .label{font-size:11px;color:var(--muted);letter-spacing:.02em}
+.kpi .value{font-size:21px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:3px}
+.kpi .sub{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:right;font-size:13px}
+th{color:var(--muted);font-weight:500;font-size:11px;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+tr:last-child td{border-bottom:none}
+.num{font-variant-numeric:tabular-nums}
+.up{color:var(--good)} .down{color:var(--bad)} .flat{color:var(--muted)}
+.sess-date{font-weight:700;font-size:14px}
+.sess-meta{font-size:12px;color:var(--muted);margin-bottom:8px;font-variant-numeric:tabular-nums}
+.week{display:flex;gap:6px}
+.day{flex:1;text-align:center;border:1px solid var(--line);border-radius:9px;padding:8px 2px;background:var(--card)}
+.day .d{font-size:11px;color:var(--muted)}
+.day .m{font-size:17px;margin-top:2px}
+.day.done{border-color:var(--accent)}
+.pbar{height:6px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:8px}
+.pbar > span{display:block;height:100%;background:var(--accent)}
+.hero{background:linear-gradient(135deg,var(--accent),#c2410c);color:#fff;border:none}
+.hero .label,.hero .sub{color:rgba(255,255,255,.82)}
+
+/* ===== 上部タブ ===== */
+.tabs{display:flex;gap:6px;margin:0 0 14px;position:sticky;top:0;z-index:20;
+  background:var(--bg);padding:10px 0 8px}
+.tabs button{flex:1;padding:10px;border-radius:10px;border:1px solid var(--line);
+  background:var(--card);color:var(--muted);font-size:15px;font-weight:700;font-family:inherit;cursor:pointer}
+.tabs button.on{background:var(--text);border-color:var(--text);color:var(--bg)}
+section{display:none}
+section.on{display:block}
+body.log-view .bar{display:none}
+</style>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+<div class="wrap">
+  <div class="tabs" id="tabs">
+    <button data-tab="menu" class="on">メニュー</button>
+    <button data-tab="log">ログ</button>
+  </div>
+
+  <section id="tab-menu" class="on">
+<div class="wrap">
+  
+  <div class="updated" id="today"></div>
+
+  <div class="seg" id="seg">
+    <button data-day="A">Day A<span class="cap">プッシュ＋脚・木</span></button>
+    <button data-day="B">Day B<span class="cap">プル＋ヒンジ・月</span></button>
+    <button data-day="ZA">チョコ 朝A<span class="cap">下半身・火</span></button>
+    <button data-day="ZB">チョコ 朝B<span class="cap">上半身・金</span></button>
+  </div>
+  <div class="hint" id="hint"></div>
+
+  <div id="list"></div>
+
+  <div class="card">
+    <div class="btns"><button id="addToggle">＋ 種目を追加</button></div>
+    <div class="addform" id="addform">
+      <div class="row">
+        <label>種目名<input id="f-name" type="text" placeholder="例：シーテッドロー"></label>
+        <label style="flex:0 0 96px">区分<select id="f-kind">
+          <option value="machine">マシン</option><option value="free">バーベル</option>
+          <option value="body">自重</option></select></label>
+      </div>
+      <div class="row">
+        <label>Day<select id="f-day">
+          <option value="A">Day A</option><option value="B">Day B</option>
+          <option value="ZA">チョコ朝A</option><option value="ZB">チョコ朝B</option></select></label>
+      </div>
+      <div class="row">
+        <label>kg<input id="f-kg" type="number" inputmode="decimal"></label>
+        <label>回<input id="f-reps" type="number" inputmode="numeric" value="10"></label>
+        <label>セット<input id="f-sets" type="number" inputmode="numeric" value="3"></label>
+      </div>
+      <div class="row">
+        <label>フォーム・注意点（任意）<input id="f-note" type="text" placeholder="肩甲骨を寄せる など"></label>
+      </div>
+      <div class="btns"><button class="primary" id="addSave">追加する</button></div>
+    </div>
+  </div>
+
+  <h2>記録の書き出し</h2>
+  <div class="card">
+    <div class="sub">終わったらコピーしてClaudeに貼るだけ。カロリー・平均心拍・時間はStravaから補完されます。</div>
+    <textarea id="out" readonly placeholder="まだ記録がありません"></textarea>
+    <div class="btns">
+      <button class="primary" id="copy">コピー</button>
+      <button id="drive">Driveに書き出し</button>
+    </div>
+    <div class="sub" id="driveStatus"></div>
+    <div class="btns">
+      <button id="reset">今日の記録をクリア</button>
+    </div>
+  </div>
+
+  
+</div>
+
+
+
+
+  </section>
+
+  <section id="tab-log">
+<div class="wrap">
+  
+  <div class="updated" id="updated"></div>
+
+  <div class="grid">
+    <div class="kpi"><div class="label">体重</div><div class="value" id="bwNow">–</div><div class="sub" id="bwDate"></div></div>
+    <div class="kpi"><div class="label">目標まで</div><div class="value" id="bwGap">–</div><div class="sub">目標 70.0kg</div></div>
+    <div class="kpi"><div class="label">8月ライド</div><div class="value" id="augKm">–</div><div class="sub">km</div></div>
+  </div>
+
+  <h2>体重の推移</h2>
+  <div class="card"><table id="bwTable"></table></div>
+
+  <h2>直近のライド</h2>
+  <div id="lastRide"></div>
+
+  <h2>ライド履歴</h2>
+  <div class="card"><table id="rideTable"></table></div>
+
+  <h2>種目別の推移</h2>
+  <div class="card"><table id="exTable"></table></div>
+
+  <h2>セッション履歴</h2>
+  <div id="sessions"></div>
+
+  <h2>今週の実施状況</h2>
+  <div id="week"></div>
+
+  <footer>records.csv / bodyweight.csv / rides.csv から生成</footer>
+</div>
+  </section>
+</div>
+
+<div class="bar"><div class="inner">
+  <span class="count" id="count"></span>
+  <button class="primary" id="copy2">記録をコピー</button>
+</div></div>
+<div class="modal" id="modal"><div class="sheet">
+  <h3 id="mTitle"></h3>
+  <div class="kicker" id="mKicker"></div>
+  <div id="mBody"></div>
+  <h4>調べる</h4>
+  <div class="btns">
+    <button data-q="google">Google</button>
+    <button data-q="youtube">YouTube</button>
+    <button data-q="image">画像</button>
+  </div>
+  <div class="btns"><button class="primary" id="mClose">閉じる</button></div>
+</div></div>
+
+<script>
+(function(){
+
+/* ===== プラン（README.md「4. 現在のトレーニングプラン」準拠） =====
+   配列の順＝優先順。時間切れなら下から切る。 */
+const DAYS = {
+  A:  {label:"Day A（プッシュ＋脚）", csv:"A", hint:"木曜 60〜90分。予約枠を先に固め、その後マシン、最後に自重。時間切れなら下から切る。"},
+  B:  {label:"Day B（プル＋ヒンジ）", csv:"B", hint:"月曜 60〜90分。予約枠を先に固め、その後マシン、最後に自重。時間切れなら下から切る。"},
+  ZA: {label:"チョコザップ 朝A（下半身）", csv:"チョコザップ", hint:"火曜の朝20分・任意。"},
+  ZB: {label:"チョコザップ 朝B（上半身）", csv:"チョコザップ", hint:"金曜の朝20分・任意。"}
+};
+
+const KIND = {
+  free:    {label:"フリーウェイト（要予約枠）", short:"フリー"},
+  machine: {label:"マシン", short:"マシン"},
+  body:    {label:"自重", short:"自重"}
+};
+const FREE_EX = ["スミスマシン・スクワット", "ブルガリアンスクワット", "ルーマニアンデッドリフト"];
+const BODY_EX = ["アブベンチ", "プランク", "デッドバグ"];
+const kindOf = it => it.kind || (FREE_EX.indexOf(it.ex) >= 0 ? "free"
+                    : BODY_EX.indexOf(it.ex) >= 0 ? "body" : "machine");
+
+const CATALOG = [
+/* ---- Day A：プッシュ＋脚 ---- */
+ {ex:"スミスマシン・スクワット", day:"A", en:"Squat (Smith Machine)", rest:"90秒", hs:"Hammer Strength Smith Machine",
+  last:null, target:{kg:20, reps:8, sets:3}, note:"20kgはバーのみ。フォーム習得が先",
+  form:["バーは僧帽筋の上（首に乗せない）","足は肩幅、つま先はやや外","膝とつま先の向きを揃える","太ももが床と平行まで","下ろす2秒・上げる1秒"],
+  caution:"腰が丸まる深さまで下ろさない。重量より深さとフォームを優先。"},
+
+ {ex:"ブルガリアンスクワット", day:"A", en:"Bulgarian Split Squat", rest:"60秒",
+  last:null, target:{kg:null, reps:8, sets:3}, note:"左右各8回。まず自重で左右差を確認",
+  form:["後ろ足をベンチに乗せ、前足は大きめに踏み出す","上体はやや前傾させて股関節に乗せる","前脚の膝がつま先より大きく前に出ない","前脚の踵で床を押して立つ"],
+  caution:"ふらつく側が弱い側。ペダリングの左右差はここに出るので、弱い側に合わせて回数を決める。自重で安定してからダンベルを持つ。"},
+
+ {ex:"レッグプレス", day:"A", en:"Leg Press", rest:"90秒", hs:"Hammer Strength Select Seated Leg Press",
+  last:{date:"2026-08-11", kg:80, reps:15, sets:3}, target:{kg:95, reps:10, sets:3},
+  note:"8/11に80kg×15×3。プラン上は95kg×10",
+  form:["足は肩幅、プレート中央〜やや上","膝とつま先の向きを揃える","膝は伸ばしきらない","腰が丸まらない深さまで"],
+  caution:"尻がシートから浮くところまで下ろすと腰を痛める。そこが可動域の限界。"},
+
+ {ex:"ホリゾンタルカーフ", day:"A", en:"Machine Calf Extension", rest:"45秒", hs:"Hammer Strength Select Horizontal Calf",
+  last:null, target:{kg:60, reps:15, sets:3}, note:"未実施・目安の重量",
+  form:["母趾球でプレートを押す","かかとを深く下ろしてふくらはぎを伸ばす","頂点で1秒止める","反動を使わない"],
+  caution:"未実施なので初回は40kg前後から試して、15回で余るなら上げる。"},
+
+ {ex:"チェストプレス", day:"A", en:"Chest Press (Machine)", rest:"60秒", hs:"Hammer Strength Select Chest Press",
+  last:{date:"2026-08-16", kg:65, reps:10, sets:3}, target:{kg:70, reps:10, sets:3},
+  note:"65kgで3セット完遂済み",
+  form:["肩甲骨を寄せて背もたれにつけ、胸を張る","グリップは乳頭のライン","肘は体側から45〜60度","押し切っても肘は伸ばしきらない","戻しは2秒"],
+  caution:"肩がすくむと三角筋と首に逃げる。効いていなければまず肩の位置を疑う。"},
+
+ {ex:"アブドミナル", day:"A", en:"Ab Bench Crunch", rest:"45秒", hs:"Hammer Strength Select Abdominal Crunch",
+  last:{date:"2026-08-11", kg:39, reps:10, sets:1}, target:{kg:34, reps:15, sets:3},
+  note:"39kgでは10回止まり。34kgで15回×3",
+  form:["背中を丸めてみぞおちを引き込む","股関節から曲げない","戻しきる手前で止めて張力を保つ"],
+  caution:"回数が設定に届かないうちは重量を上げない。腰痛の日は外す。"},
+
+ {ex:"デッドバグ", day:"A", en:"Dead Bug", rest:"30秒",
+  last:null, target:{kg:null, reps:10, sets:2}, note:"左右交互で10回",
+  form:["仰向けで腰を床に押しつける","対角の手と脚をゆっくり伸ばす","腰が浮いたらそこが可動域の限界","呼吸は止めない"],
+  caution:"速く動かさない。プランクより実戦的で、ペダリング中の骨盤の安定に効く。"},
+
+/* ---- Day B：プル＋ヒンジ ---- */
+ {ex:"ルーマニアンデッドリフト", day:"B", en:"Romanian Deadlift", rest:"90秒",
+  last:null, target:{kg:20, reps:8, sets:3}, note:"20kg（バーのみ可）。フォーム最優先",
+  form:["膝は軽く曲げた角度で固定","股関節から折る。尻を後ろへ引く","バーは腿に沿わせて下ろす","背中はまっすぐ、胸を張る","ハムに伸びを感じたら戻す（床まで下ろさない）"],
+  caution:"腰で引き上げるのは誤り。動くのは股関節だけ。腰痛が出た日はこの種目を外す。"},
+
+ {ex:"ヒップグルート", day:"B", en:"Glute Kickback (Machine)", rest:"60秒", hs:"Hammer Strength Select Hip and Glute",
+  last:{date:"2026-08-11", kg:61, reps:10, sets:3}, target:{kg:61, reps:10, sets:3}, note:"左右各10回。股関節伸展（後ろへ押す）",
+  form:["マシンに正面を向いて立つ（横向きは外転＝別種目）","支持脚をプレートに、ハンドルで上体を固定","ローラーは膝の少し上（太もも裏の下部）に当てる","脚を前から後ろへ押す。蹴らずに押し切る","太ももが体の線より後ろに来たら尻を1秒締める","左右それぞれ10回。片脚ずつ数える"],
+  caution:"効かせるのは股関節伸展（後ろへ押す）。横に開くのは外転でヒップアブダクションの動き、前に上げるのは屈曲で別種目。腰を反らせて距離を稼ぐと尻ではなく腰に入るので、上体は垂直のまま。"},
+
+ {ex:"バックエクステンション", day:"B", en:"Back Extension", rest:"60秒", hs:"Hammer Strength Select Back Extension",
+  last:null, target:{kg:null, reps:12, sets:3}, note:"自重。脊柱起立筋",
+  form:["骨盤の少し下にパッドを合わせる","背中は反らせず、体幹を一直線に保つ","股関節から曲げ伸ばしする","体が一直線になるところで止める"],
+  caution:"上で反らせすぎると腰を痛める。ロング後半の腰の落ちに直結する種目。腰痛が出ている日は中止。"},
+
+ {ex:"プルダウン", day:"B", en:"Lat Pulldown", rest:"60秒", hs:"Hammer Strength Select Lat Pulldown",
+  last:{date:"2026-08-16", kg:45, reps:15, sets:3}, target:{kg:40, reps:10, sets:3},
+  note:"可動域確保のため意図的に軽くしている",
+  form:["胸を張り、上体はやや後傾（10〜20度）","まず肩甲骨を下げ、それから肘を体側へ下ろす","バーは鎖骨〜上胸まで","戻すときは腕を伸ばしきる"],
+  caution:"鎖骨まで引ける感覚が出るまで重量は据え置き。腕で引くと二頭筋だけ疲れる。腰痛の日は外す。"},
+
+ {ex:"シーテッドロー", day:"B", en:"Seated Row", rest:"60秒", hs:"Hammer Strength Select Seated Row",
+  last:null, target:{kg:40, reps:10, sets:3}, note:"未実施・目安。40kgから",
+  form:["胸を張り、上体は垂直を保つ","肩甲骨を寄せてから肘を引く","肘は体側に沿わせる","戻すときも背中を丸めない"],
+  caution:"上体を大きく倒して反動を使わない。前傾姿勢を保つ背中の持久力に効く。"},
+
+ {ex:"リアデルトイド", day:"B", en:"Reverse Fly (Machine)", rest:"45秒", hs:"Hammer Strength Select Pectoral Fly/Rear Deltoid",
+  last:null, target:{kg:20, reps:12, sets:3}, note:"未実施・目安。15kgから試す",
+  form:["胸をパッドにつける","肘は軽く曲げた角度で固定","肩の後ろで腕を横に開く","あと2〜3回いけるところで止める"],
+  caution:"首や僧帽筋（肩の上）に効いたら重すぎ。1段下げる。小さい筋肉なので15〜25kgで十分。"},
+
+ {ex:"ヒップアブダクション", day:"B", en:"Hip Abduction (Machine)", rest:"45秒", hs:"Hammer Strength Select Hip Abduction",
+  last:null, target:{kg:40, reps:15, sets:3}, note:"未実施・目安",
+  form:["背中をパッドにつけ骨盤を固定","反動を使わず開く","戻しもゆっくり"],
+  caution:"上体を横に倒して開かない。効くのは尻の外側。"},
+
+ {ex:"トーソローテーション", day:"B", en:"Torso Rotation (Machine)", rest:"45秒", hs:"Hammer Strength Torso Rotation",
+  last:{date:"2026-08-11", kg:30, reps:15, sets:3}, target:{kg:30, reps:15, sets:2},
+  note:"補助種目。30kgで脇腹に入る",
+  form:["骨盤と脚を固定し、胸郭から回す","ゆっくり回して戻しも耐える","左右同回数"],
+  caution:"50kgでは腰と尻に逃げた実績あり。30kg前後を維持。"},
+
+ {ex:"デッドバグ", day:"B", en:"Dead Bug", rest:"30秒",
+  last:null, target:{kg:null, reps:10, sets:2}, note:"左右交互で10回",
+  form:["仰向けで腰を床に押しつける","対角の手と脚をゆっくり伸ばす","腰が浮いたらそこが可動域の限界","呼吸は止めない"],
+  caution:"速く動かさない。ペダリング中の骨盤の安定に効く。"},
+
+/* ---- チョコザップ 朝A（下半身） ---- */
+ {ex:"レッグプレス", day:"ZA", en:"Leg Press", rest:"60秒",
+  last:{date:"2026-08-11", kg:80, reps:15, sets:3}, target:{kg:80, reps:12, sets:3},
+  note:"朝の軽めセット",
+  form:["足は肩幅、プレート中央","膝は伸ばしきらない","腰が丸まらない深さまで"],
+  caution:"朝は関節が固いので1セット目は軽く。"},
+
+ {ex:"ヒップアブダクション", day:"ZA", en:"Hip Abduction (Machine)", rest:"45秒",
+  last:null, target:{kg:40, reps:15, sets:3}, note:"未実施・目安",
+  form:["背中をパッドにつけ骨盤を固定","反動を使わず開く"],
+  caution:"上体を倒して開かない。"},
+
+ {ex:"アブベンチ", day:"ZA", en:"Ab Bench Crunch", rest:"45秒",
+  last:{date:"2026-08-16", kg:null, reps:20, sets:2}, target:{kg:null, reps:15, sets:2},
+  note:"自重",
+  form:["みぞおちを恥骨に近づける","股関節から起き上がらない"],
+  caution:"手で頭を引っ張らない。首が痛むのは腹筋が疲れた合図。"},
+
+/* ---- チョコザップ 朝B（上半身） ---- */
+ {ex:"チェストプレス", day:"ZB", en:"Chest Press (Machine)", rest:"60秒",
+  last:{date:"2026-08-16", kg:65, reps:10, sets:3}, target:{kg:65, reps:10, sets:3},
+  note:"ジムのDay Aと同じマシンではない点に注意",
+  form:["肩甲骨を寄せて胸を張る","肘は体側から45〜60度","戻しは2秒"],
+  caution:"マシンが違うと同じ数値でも負荷が変わる。数値より効き方で判断。"},
+
+ {ex:"ラットプルダウン", day:"ZB", en:"Lat Pulldown", rest:"60秒",
+  last:{date:"2026-08-16", kg:45, reps:15, sets:3}, target:{kg:45, reps:10, sets:3},
+  note:"フォーム重視で45kg継続",
+  form:["肩甲骨を下げてから肘を下ろす","バーは鎖骨〜上胸まで","戻しは腕を伸ばしきる"],
+  caution:"鎖骨まで引けるまで重量据え置き。"},
+
+ {ex:"ショルダープレス", day:"ZB", en:"Shoulder Press (Machine)", rest:"45秒",
+  last:{date:"2026-08-12", kg:40, reps:10, sets:3}, target:{kg:40, reps:10, sets:2},
+  note:"肩メインで胸に少し入るのは正常",
+  form:["背もたれに背中をつけ、肩の高さから","真上に押す。前に押し出さない","肘は伸ばしきらない"],
+  caution:"腰を反らせて押さない。腹圧を入れて肋骨を締める。"},
+
+ {ex:"ディップス", day:"ZB", en:"Dips", rest:"45秒",
+  last:{date:"2026-08-16", kg:55, reps:15, sets:1}, target:{kg:55, reps:15, sets:3},
+  note:"計画外だが実施実績あり",
+  form:["肩を下げたまま（すくめない）","やや前傾で大胸筋下部、垂直で三頭筋","肘は後ろに引く"],
+  caution:"要確認：アシスト式なら数値が大きいほど軽くなります。40→50→55kgで回数が落ちていないので、マシンの表示を一度見てください。"},
+
+ {ex:"プランク", day:"ZB", en:"Plank", rest:"30秒",
+  last:{date:"2026-08-16", kg:null, reps:null, sets:null, disp:"30秒"}, target:{disp:"45秒"},
+  note:"",
+  form:["肘は肩の真下","頭・背中・踵が一直線","腹と尻に力を入れて骨盤を締める"],
+  caution:"尻が上がる／腰が落ちるなら時間を短くする。呼吸は止めない。"}
+];
+
+/* ===== 状態 ===== */
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2,"0");
+const now = new Date();
+const TODAY = now.getFullYear() + "-" + pad(now.getMonth()+1) + "-" + pad(now.getDate());
+const LOGKEY = "workout-log-" + TODAY;
+const CUSTKEY = "workout-custom-v2";
+const DAYKEY = "workout-day-" + TODAY;
+
+const load = (k, def) => { try { return JSON.parse(localStorage.getItem(k)) || def; } catch(e){ return def; } };
+const put = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} };
+
+let log = load(LOGKEY, {});
+let custom = load(CUSTKEY, []);
+let day = localStorage.getItem(DAYKEY) || defaultDay();
+
+function defaultDay(){
+  const w = now.getDay(); // 0=日
+  return w === 1 ? "B" : w === 4 ? "A" : w === 2 ? "ZA" : w === 5 ? "ZB" : "B";
+}
+function all(){ return CATALOG.concat(custom); }
+function key(it){ return it.day + "|" + it.ex; }
+
+$("today").textContent = TODAY.replace(/-/g,"/") + "（" + "日月火水木金土".charAt(now.getDay()) + "）";
+const daysSince = d => Math.round((new Date(TODAY) - new Date(d)) / 86400000);
+
+/* ===== 描画 ===== */
+function render(){
+  [...$("seg").querySelectorAll("button")].forEach(b => b.classList.toggle("on", b.dataset.day === day));
+  $("hint").textContent = DAYS[day].hint;
+
+  const rank = {free:0, machine:1, body:2};
+  const items = all().filter(it => it.day === day)
+    .map((it, i) => ({it, i}))
+    .sort((a, b) => (rank[kindOf(a.it)] - rank[kindOf(b.it)]) || (a.i - b.i))
+    .map(o => o.it);
+
+  let h = "", lastKind = null, n = 0;
+  items.forEach(it => {
+    const kd = kindOf(it);
+    if (kd !== lastKind) {
+      h += '<div class="group ' + kd + '">' + KIND[kd].label + '</div>';
+      lastKind = kd;
+    }
+    const i = n++;
+    const k = key(it);
+    const rec = log[k];
+    const t = it.target;
+    const targetTxt = t.disp ? t.disp : (t.kg ? t.kg + "kg" : "自重") + " × " + t.reps + " × " + t.sets;
+    const lastTxt = !it.last || !it.last.date ? "記録なし"
+      : it.last.disp ? it.last.disp
+      : (it.last.kg ? it.last.kg + "kg" : "自重") + " × " + it.last.reps + " × " + it.last.sets;
+    const gap = it.last && it.last.date ? daysSince(it.last.date) : null;
+
+    h += '<div class="card k-' + kd + (rec ? ' done' : '') + '" data-k="' + esc(k) + '">' +
+      '<div class="ex-head"><span class="pri">' + (i+1) + '</span>' +
+      '<span class="ex-name" data-act="info">' + esc(it.ex) + '</span>' +
+      '<span class="target">' + targetTxt + '</span></div>' +
+      '<div class="sub">前回 ' + lastTxt + (gap != null ? ' ・ ' + gap + '日前' : '') +
+        (gap != null && gap >= 7 ? '<span class="tag stale">間隔あき</span>' : '') +
+        '<span class="kt ' + kd + '">' + KIND[kd].short + '</span>' +
+        (it.custom ? '<span class="tag">追加</span>' : '') +
+        (it.rest ? '<span class="tag">休憩' + it.rest + '</span>' : '') + '</div>' +
+      (it.note ? '<div class="note">' + esc(it.note) + '</div>' : '');
+
+    if (rec) {
+      h += '<div class="logged">記録済み ' + fmtRec(rec) + '</div>' +
+        '<div class="btns"><button data-act="undo">取り消し</button></div>';
+    } else {
+      h += '<div class="inputs">' +
+        '<label>kg<input type="number" inputmode="decimal" data-f="kg" value="' + (t.kg != null ? t.kg : "") + '"></label>' +
+        '<label>回<input type="number" inputmode="numeric" data-f="reps" value="' + (t.reps != null ? t.reps : "") + '"></label>' +
+        '<label>セット<input type="number" inputmode="numeric" data-f="sets" value="' + (t.sets != null ? t.sets : "") + '"></label>' +
+        '</div>' +
+        (t.disp ? '<div class="setline">目安 ' + t.disp + '（メモ欄に記入されます）</div>' : '') +
+        '<div class="btns"><button data-act="open">入力する</button>' +
+        '<button class="primary" data-act="log">記録</button>' +
+        (it.custom ? '<button class="ghost" data-act="del">削除</button>' : '') + '</div>';
+    }
+    h += '</div>';
+  });
+  $("list").innerHTML = h || '<div class="card"><span class="sub">この日の種目がありません。下から追加してください。</span></div>';
+
+  $("count").textContent = Object.keys(log).length + " 種目 記録済み";
+  $("out").value = buildCsv();
+}
+
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;"); }
+function fmtRec(r){
+  if (r.disp) return r.disp;
+  return (r.kg ? r.kg + "kg" : "自重") + " × " + r.reps + " × " + r.sets;
+}
+
+function buildCsv(){
+  if (!Object.keys(log).length) return "";
+  const lines = ["date,day,exercise,weight_kg,reps,sets,calories,avg_hr,duration_min,note"];
+  const rank = {free:0, machine:1, body:2};
+  all().map((it, i) => ({it, i}))
+    .sort((a, b) => (rank[kindOf(a.it)] - rank[kindOf(b.it)]) || (a.i - b.i))
+    .map(o => o.it).forEach(it => {
+    const r = log[key(it)];
+    if (!r) return;
+    lines.push([TODAY, DAYS[it.day].csv, it.ex, r.kg != null ? r.kg : "",
+      r.reps != null ? r.reps : "", r.sets != null ? r.sets : "",
+      "", "", "", r.disp ? r.disp : ""].join(","));
+  });
+  return lines.join("\n");
+}
+
+/* ===== カード操作 ===== */
+$("list").addEventListener("click", e => {
+  const card = e.target.closest(".card");
+  if (!card) return;
+  const k = card.dataset.k;
+  const item = all().find(c => key(c) === k);
+  const el = e.target.closest("[data-act]");
+  if (!el || !item) return;
+  const act = el.dataset.act;
+
+  if (act === "info") { showInfo(item); return; }
+  if (act === "open") { card.classList.toggle("open"); return; }
+  if (act === "undo") { delete log[k]; put(LOGKEY, log); render(); return; }
+  if (act === "del") {
+    if (!confirm(item.ex + " を削除しますか？")) return;
+    custom = custom.filter(c => key(c) !== k); put(CUSTKEY, custom); render(); return;
+  }
+  if (act === "log") {
+    const get = f => { const i = card.querySelector('[data-f="' + f + '"]'); return i && i.value !== "" ? Number(i.value) : null; };
+    if (item.target.disp && get("reps") == null) log[k] = {disp: item.target.disp};
+    else log[k] = {kg: get("kg"), reps: get("reps"), sets: get("sets")};
+    put(LOGKEY, log); render();
+  }
+});
+
+/* ===== ポップアップ ===== */
+let current = null;
+function showInfo(it){
+  current = it;
+  $("mTitle").textContent = it.ex;
+  const t = it.target;
+  $("mKicker").textContent = [
+    DAYS[it.day].label,
+    KIND[kindOf(it)].label,
+    t.disp ? t.disp : (t.kg ? t.kg + "kg" : "自重") + " × " + t.reps + "回 × " + t.sets + "セット",
+    it.rest ? "休憩" + it.rest : "",
+    it.en || ""
+  ].filter(Boolean).join(" ・ ");
+  let b = "";
+  if (it.form && it.form.length) b += "<h4>フォーム</h4><ul>" + it.form.map(f => "<li>" + esc(f) + "</li>").join("") + "</ul>";
+  if (it.hs) b += '<h4>機材</h4><div class="sub">' + esc(it.hs) + "</div>";
+  if (it.caution) b += '<h4>注意点</h4><div class="warn">' + esc(it.caution) + "</div>";
+  if (it.last && it.last.date) {
+    b += "<h4>前回</h4><div class=\"sub\">" + it.last.date.replace(/-/g,"/") + " ・ " +
+      (it.last.disp ? it.last.disp : (it.last.kg ? it.last.kg + "kg" : "自重") + " × " + it.last.reps + " × " + it.last.sets) + "</div>";
+  }
+  if (!b) b = '<div class="sub">フォームメモは未登録です。</div>';
+  $("mBody").innerHTML = b;
+  $("modal").classList.add("on");
+}
+document.querySelector(".sheet").addEventListener("click", e => {
+  const b = e.target.closest("[data-q]");
+  if (!b || !current) return;
+  const ja = current.ex;
+  const en = current.en || "";
+  const hs = current.hs || "";
+  let url;
+  if (b.dataset.q === "youtube") {
+    url = "https://www.youtube.com/results?search_query=" +
+      encodeURIComponent(hs ? hs + " how to use"
+        : en ? en + " form" : ja + " フォーム 解説");
+  } else if (b.dataset.q === "image") {
+    url = "https://www.google.com/search?tbm=isch&q=" +
+      encodeURIComponent(hs ? hs : ja + " フォーム" + (en ? " " + en : ""));
+  } else {
+    url = "https://www.google.com/search?q=" +
+      encodeURIComponent(hs ? hs + " 使い方 フォーム"
+        : ja + " やり方 フォーム 効かせ方");
+  }
+  window.open(url, "_blank", "noopener");
+});
+$("mClose").addEventListener("click", () => $("modal").classList.remove("on"));
+$("modal").addEventListener("click", e => { if (e.target.id === "modal") $("modal").classList.remove("on"); });
+
+/* ===== Day切替 ===== */
+$("seg").addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  day = b.dataset.day;
+  localStorage.setItem(DAYKEY, day);
+  render();
+});
+
+/* ===== 種目追加 ===== */
+$("addToggle").addEventListener("click", () => $("addform").classList.toggle("open"));
+$("addSave").addEventListener("click", () => {
+  const name = $("f-name").value.trim();
+  const d = $("f-day").value;
+  if (!name) { alert("種目名を入れてください"); return; }
+  if (all().some(c => c.day === d && c.ex === name)) { alert("同じDayに同じ名前の種目があります"); return; }
+  const num = id => $(id).value !== "" ? Number($(id).value) : null;
+  const memo = $("f-note").value.trim();
+  custom.push({ex:name, day:d, kind:$("f-kind").value, custom:true, last:null,
+    target:{kg:num("f-kg"), reps:num("f-reps"), sets:num("f-sets")},
+    note:memo, form:[], caution:memo});
+  put(CUSTKEY, custom);
+  $("f-name").value = ""; $("f-kg").value = ""; $("f-note").value = "";
+  $("addform").classList.remove("open");
+  day = d; localStorage.setItem(DAYKEY, day);
+  render();
+});
+
+/* ===== 書き出し ===== */
+function copyOut(){
+  const text = buildCsv();
+  if (!text) { alert("まだ記録がありません"); return; }
+  const ta = $("out");
+  ta.select(); ta.setSelectionRange(0, 99999);
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(ok, ng); else ok();
+  function ok(){ alert("コピーしました。Claudeに貼り付けてください"); }
+  function ng(){ document.execCommand("copy"); ok(); }
+}
+$("copy").addEventListener("click", copyOut);
+$("copy2").addEventListener("click", copyOut);
+$("reset").addEventListener("click", () => {
+  if (confirm("今日の記録を消します。よろしいですか？")) { log = {}; put(LOGKEY, log); render(); }
+});
+
+render();
+
+})();
+(function(){
+
+/* ===== データ（CSVから生成・直接編集しない） ===== */
+const GENERATED = "2026-08-17";
+const TARGET_WEIGHT = 70.0;
+
+const BODYWEIGHT = [
+  {date:"2026-08-11", kg:86.8},
+  {date:"2026-08-17", kg:86.2}
+];
+
+const RECORDS = [
+  {date:"2026-08-11", day:"B", ex:"レッグプレス", kg:80, reps:15, sets:3, cal:178, hr:93, min:38, note:"ジム初回。15回できたので次回95kgへ"},
+  {date:"2026-08-11", day:"B", ex:"ヒップグルート", kg:61, reps:10, sets:3, note:""},
+  {date:"2026-08-11", day:"B", ex:"トーソローテーション", kg:50, reps:15, sets:1, note:"50kgでは腰と尻に効いてしまった"},
+  {date:"2026-08-11", day:"B", ex:"トーソローテーション", kg:30, reps:15, sets:3, note:"30kgに落として脇腹に入るのを確認"},
+  {date:"2026-08-11", day:"B", ex:"アブドミナルベンチ", kg:39, reps:10, sets:1, note:"15回設定に対し10回。次回34kgへ"},
+  {date:"2026-08-12", day:"チョコザップ", ex:"ラットプルダウン", kg:50, reps:10, sets:1, cal:124, hr:94, min:25, note:"鎖骨まで引けておらず次回40kgへ"},
+  {date:"2026-08-12", day:"チョコザップ", ex:"チェストプレス", kg:65, reps:10, sets:3, note:"3セット完遂、次回70kg"},
+  {date:"2026-08-12", day:"チョコザップ", ex:"シルダープレス", kg:40, reps:10, sets:3, note:"肩メイン・胸に少しは正常"},
+  {date:"2026-08-16", day:"チョコザップ", ex:"チェストプレス", kg:65, reps:10, sets:3, cal:103, hr:102, min:17, note:"120kmライド後。前回と同じ65kgで3セット完遂（Strava計測は17分のみで実際より短い）"},
+  {date:"2026-08-16", day:"チョコザップ", ex:"ディップス", kg:40, reps:15, sets:1, note:"ウォームアップ"},
+  {date:"2026-08-16", day:"チョコザップ", ex:"ディップス", kg:50, reps:15, sets:1, note:""},
+  {date:"2026-08-16", day:"チョコザップ", ex:"ディップス", kg:55, reps:15, sets:1, note:"55kgでも15回。次回60〜65kgへ"},
+  {date:"2026-08-16", day:"チョコザップ", ex:"ラットプルダウン", kg:45, reps:15, sets:3, note:"フォーム重視で45kg継続。肩甲骨から引ける感覚が出るまでこの重量"},
+  {date:"2026-08-16", day:"チョコザップ", ex:"アブベンチ", reps:20, sets:2, note:"自重"},
+  {date:"2026-08-16", day:"チョコザップ", ex:"プランク", disp:"30秒", note:""},
+  {date:"2026-08-17", day:"チョコザップ", ex:"ウェイトトレーニング", disp:"52分", cal:237, hr:94, min:52, note:"21:22〜22:14。Garmin側のセット情報はStravaに連携されないため種目・重量は未記録"},
+  {date:"2026-08-17", day:"チョコザップ", ex:"エアロバイク", disp:"14分", note:"22:15〜22:29 ・107kcal ・平均109bpm（Stravaでは距離0のRide）"}
+];
+
+const RIDES = [
+  {date:"2026-07-19", km:60.7, moving:8675, elapsed:11194, elev:194, spd:25.2, cal:1352, re:204},
+  {date:"2026-08-01", km:76.1, moving:11817, elapsed:16058, elev:150, spd:23.2, cal:1703},
+  {date:"2026-08-02", km:55.1, moving:8010, elapsed:10542, elev:160, spd:24.8, cal:1267},
+  {date:"2026-08-02", km:38.0, moving:5853, elapsed:10177, elev:173, spd:23.4, cal:802},
+  {date:"2026-08-16", km:117.2, moving:17889, elapsed:24711, elev:513, spd:23.6, maxSpd:48.4,
+   watts:122, hr:130, maxHr:162, cad:77, cal:2553, re:221, prs:15,
+   power:{"5秒":454,"1分":304,"5分":206,"20分":157,"1時間":137},
+   note:"今季最長。停止時間1時間54分"}
+];
+
+/* ===== ユーティリティ ===== */
+const $ = id => document.getElementById(id);
+const hm = s => Math.floor(s/3600) + "時間" + String(Math.floor(s%3600/60)).padStart(2,"0") + "分";
+const md = d => Number(d.slice(5,7)) + "/" + Number(d.slice(8,10));
+function row(k, v){ return '<tr><td>' + k + '</td><td class="num">' + v + '</td></tr>'; }
+
+/* ===== サマリー ===== */
+$("updated").textContent = "最終更新 " + GENERATED.replace(/-/g,"/");
+const bwLast = BODYWEIGHT[BODYWEIGHT.length-1];
+if (bwLast) {
+  $("bwNow").textContent = bwLast.kg.toFixed(1);
+  $("bwDate").textContent = md(bwLast.date) + " 時点";
+  $("bwGap").textContent = "-" + (bwLast.kg - TARGET_WEIGHT).toFixed(1);
+}
+const augKm = RIDES.filter(r => r.date.slice(0,7) === "2026-08").reduce((a,r) => a + r.km, 0);
+$("augKm").textContent = augKm.toFixed(0);
+
+/* ===== 体重の推移 ===== */
+(function(){
+  let h = '<thead><tr><th>日付</th><th>体重</th><th>前回比</th></tr></thead><tbody>';
+  BODYWEIGHT.slice().reverse().forEach((b, i, arr) => {
+    const prev = arr[i+1];
+    let diff = '<span class="flat">–</span>';
+    if (prev) {
+      const d = +(b.kg - prev.kg).toFixed(1);
+      if (d < 0) diff = '<span class="up">' + d.toFixed(1) + '</span>';
+      else if (d > 0) diff = '<span class="down">+' + d.toFixed(1) + '</span>';
+      else diff = '<span class="flat">±0</span>';
+    }
+    h += '<tr><td>' + md(b.date) + '</td><td class="num">' + b.kg.toFixed(1) +
+      ' kg</td><td class="num">' + diff + '</td></tr>';
+  });
+  h += '</tbody>';
+  $("bwTable").innerHTML = h;
+})();
+
+/* ===== 直近のライド ===== */
+(function(){
+  const last = RIDES.slice().sort((a,b) => a.date < b.date ? -1 : 1).pop();
+  if (!last) { $("lastRide").innerHTML = '<div class="card"><span class="flat">記録なし</span></div>'; return; }
+  let h = '<div class="grid"><div class="kpi hero"><div class="label">距離</div><div class="value">' +
+    last.km.toFixed(1) + '</div><div class="sub">km</div></div>' +
+    '<div class="kpi"><div class="label">獲得標高</div><div class="value">' + last.elev + '</div><div class="sub">m</div></div>' +
+    '<div class="kpi"><div class="label">平均速度</div><div class="value">' + last.spd.toFixed(1) + '</div><div class="sub">km/h</div></div></div>';
+  h += '<div class="card"><div class="sess-date">' + last.date.replace(/-/g,"/") + '</div><table><tbody>' +
+    row("走行時間", hm(last.moving)) +
+    row("経過時間", hm(last.elapsed)) +
+    (last.watts ? row("平均パワー", last.watts + " W") : "") +
+    (last.hr ? row("平均心拍", last.hr + " bpm（最大 " + last.maxHr + "）") : "") +
+    (last.cad ? row("平均ケイデンス", last.cad + " rpm") : "") +
+    (last.maxSpd ? row("最高速度", last.maxSpd.toFixed(1) + " km/h") : "") +
+    row("消費カロリー", last.cal.toLocaleString() + " kcal") +
+    (last.re ? row("Relative Effort", last.re) : "") +
+    (last.prs ? row("アチーブメント", last.prs + " 個") : "") +
+    '</tbody></table>' + (last.note ? '<div class="note">' + last.note + '</div>' : '') + '</div>';
+  if (last.power) {
+    h += '<div class="card"><div class="note" style="margin:0 0 6px">ベストパワー</div><table><tbody>';
+    for (const k in last.power) h += row(k, last.power[k] + " W");
+    h += '</tbody></table></div>';
+  }
+  $("lastRide").innerHTML = h;
+})();
+
+/* ===== ライド履歴 ===== */
+(function(){
+  let h = '<thead><tr><th>日付</th><th>距離</th><th>時間</th><th>標高</th><th>平均</th><th>kcal</th></tr></thead><tbody>';
+  RIDES.slice().reverse().forEach(r => {
+    h += '<tr><td>' + md(r.date) + '</td><td class="num">' + r.km.toFixed(1) + '</td><td class="num">' +
+      hm(r.moving).replace("時間",":").replace("分","") + '</td><td class="num">' + r.elev + '</td><td class="num">' +
+      r.spd.toFixed(1) + '</td><td class="num">' + r.cal.toLocaleString() + '</td></tr>';
+  });
+  h += '</tbody>';
+  $("rideTable").innerHTML = h;
+})();
+
+/* ===== 種目別の推移 ===== */
+(function(){
+  const byEx = {};
+  RECORDS.filter(r => r.kg).forEach(r => { (byEx[r.ex] = byEx[r.ex] || []).push(r); });
+  let h = '<thead><tr><th>種目</th><th>最新</th><th>前回比</th><th>回×セット</th></tr></thead><tbody>';
+  Object.keys(byEx).forEach(ex => {
+    const list = byEx[ex];
+    const last = list[list.length-1];
+    let diff = '<span class="flat">–</span>';
+    if (list.length > 1) {
+      const d = last.kg - list[list.length-2].kg;
+      if (d > 0) diff = '<span class="up">+' + d + '</span>';
+      else if (d < 0) diff = '<span class="down">' + d + '</span>';
+      else diff = '<span class="flat">±0</span>';
+    }
+    h += '<tr><td>' + ex + '</td><td class="num">' + last.kg + ' kg</td><td class="num">' + diff +
+      '</td><td class="num">' + last.reps + '×' + last.sets + '</td></tr>';
+  });
+  h += '</tbody>';
+  $("exTable").innerHTML = h;
+})();
+
+/* ===== セッション履歴 ===== */
+(function(){
+  const dates = [...new Set(RECORDS.map(r => r.date))].sort().reverse();
+  let h = '';
+  dates.forEach(d => {
+    const rows = RECORDS.filter(r => r.date === d);
+    const head = rows.find(r => r.cal) || {};
+    h += '<div class="card"><div class="sess-date">' + d.replace(/-/g,"/") +
+      '<span class="tag">' + rows[0].day + '</span></div>';
+    const meta = [];
+    if (head.min) meta.push(head.min + "分");
+    if (head.cal) meta.push(head.cal + "kcal");
+    if (head.hr) meta.push("平均" + head.hr + "bpm");
+    h += '<div class="sess-meta">' + meta.join(" ・ ") + '</div><table><tbody>';
+    rows.forEach(r => {
+      h += '<tr><td>' + r.ex + (r.note ? '<div class="note">' + r.note + '</div>' : '') +
+        '</td><td class="num">' + (r.disp ? r.disp : (r.kg ? r.kg + 'kg × ' : '自重 × ') + r.reps + ' × ' + r.sets) + '</td></tr>';
+    });
+    h += '</tbody></table></div>';
+  });
+  $("sessions").innerHTML = h;
+})();
+
+/* ===== 今週の実施状況（月〜日） ===== */
+(function(){
+  const base = new Date(GENERATED + "T00:00:00");
+  const dow = (base.getDay() + 6) % 7;
+  const mon = new Date(base); mon.setDate(base.getDate() - dow);
+  const labels = ["月","火","水","木","金","土","日"];
+  let h = '<div class="week">';
+  let gym = 0, ride = 0, km = 0;
+  for (let i = 0; i < 7; i++) {
+    const dt = new Date(mon); dt.setDate(mon.getDate() + i);
+    const key = dt.getFullYear() + "-" + String(dt.getMonth()+1).padStart(2,"0") + "-" + String(dt.getDate()).padStart(2,"0");
+    const hasGym = RECORDS.some(r => r.date === key);
+    const dayRides = RIDES.filter(r => r.date === key);
+    if (hasGym) gym++;
+    if (dayRides.length) { ride++; km += dayRides.reduce((a,r) => a + r.km, 0); }
+    const mark = dayRides.length ? "🚴" : hasGym ? "🏋️" : "·";
+    h += '<div class="day' + (hasGym || dayRides.length ? ' done' : '') + '"><div class="d">' +
+      labels[i] + '</div><div class="m">' + mark + '</div></div>';
+  }
+  h += '</div><div class="card" style="margin-top:10px"><table><tbody>' +
+    row("ジム", gym + " 回 / 週2") +
+    row("ライド", ride + " 回 " + (km ? "（" + km.toFixed(0) + "km）" : "")) +
+    '</tbody></table><div class="pbar"><span style="width:' +
+    Math.min(100, Math.round((gym/2)*100)) + '%"></span></div></div>';
+  $("week").innerHTML = h;
+})();
+
+})();
+(function(){
+  var CLIENT_ID = "482276144987-4n7pspeggai3l12l94jj81rpqmk9ga1t.apps.googleusercontent.com";
+  var SCOPE = "https://www.googleapis.com/auth/drive.file";
+  var FILENAME = "workout_inbox.csv";
+  var IDKEY = "workout-inbox-file-id";
+  var HEADER = "date,day,exercise,weight_kg,reps,sets,calories,avg_hr,duration_min,note";
+
+  var btn = document.getElementById("drive");
+  var status = document.getElementById("driveStatus");
+  var token = null, tokenClient = null;
+
+  function say(msg, bad){
+    status.textContent = msg;
+    status.style.color = bad ? "var(--bad)" : "var(--muted)";
+  }
+  function busy(on, label){
+    btn.disabled = on;
+    btn.textContent = on ? (label || "書き出し中…") : "Driveに書き出し";
+  }
+
+  function getToken(){
+    return new Promise(function(resolve, reject){
+      if (!window.google || !google.accounts || !google.accounts.oauth2) {
+        reject(new Error("Googleのライブラリが読み込めていません。通信環境を確認してください"));
+        return;
+      }
+      if (!tokenClient) {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: CLIENT_ID, scope: SCOPE, callback: function(){}
+        });
+      }
+      tokenClient.callback = function(res){
+        if (res.error) { reject(new Error("認証がキャンセルされました")); return; }
+        token = res.access_token;
+        resolve(token);
+      };
+      tokenClient.requestAccessToken({prompt: token ? "" : "consent"});
+    });
+  }
+
+  function api(url, opts){
+    opts = opts || {};
+    opts.headers = opts.headers || {};
+    opts.headers.Authorization = "Bearer " + token;
+    return fetch(url, opts).then(function(r){
+      if (r.status === 401) { token = null; throw new Error("認証の有効期限切れです。もう一度押してください"); }
+      return r;
+    });
+  }
+
+  function findFile(){
+    var id = localStorage.getItem(IDKEY);
+    if (id) return Promise.resolve(id);
+    var q = encodeURIComponent("name='" + FILENAME + "' and trashed=false");
+    return api("https://www.googleapis.com/drive/v3/files?q=" + q + "&fields=files(id)")
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        var f = j.files && j.files[0];
+        if (f) { localStorage.setItem(IDKEY, f.id); return f.id; }
+        return null;
+      });
+  }
+
+  function readFile(id){
+    return api("https://www.googleapis.com/drive/v3/files/" + id + "?alt=media")
+      .then(function(r){
+        if (r.status === 404) { localStorage.removeItem(IDKEY); return null; }
+        return r.text();
+      });
+  }
+
+  function createFile(body){
+    var meta = {name: FILENAME, mimeType: "text/csv"};
+    var b = "-------wl\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" +
+      JSON.stringify(meta) +
+      "\r\n-------wl\r\nContent-Type: text/csv; charset=UTF-8\r\n\r\n" +
+      body + "\r\n-------wl--";
+    return api("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+      method: "POST",
+      headers: {"Content-Type": 'multipart/related; boundary="-----wl"'},
+      body: b
+    }).then(function(r){ return r.json(); })
+      .then(function(j){
+        if (!j.id) throw new Error("作成に失敗しました");
+        localStorage.setItem(IDKEY, j.id);
+        return j.id;
+      });
+  }
+
+  function updateFile(id, body){
+    return api("https://www.googleapis.com/upload/drive/v3/files/" + id + "?uploadType=media", {
+      method: "PATCH",
+      headers: {"Content-Type": "text/csv; charset=UTF-8"},
+      body: body
+    }).then(function(r){
+      if (!r.ok) throw new Error("更新に失敗しました");
+      return id;
+    });
+  }
+
+  btn.addEventListener("click", function(){
+    var out = document.getElementById("out").value;
+    if (!out) { say("まだ記録がありません", true); return; }
+    var rows = out.split("\n").slice(1).filter(Boolean);
+    if (!rows.length) { say("まだ記録がありません", true); return; }
+    var added = 0;
+
+    busy(true, "認証中…");
+    say("");
+    getToken()
+      .then(function(){ busy(true); return findFile(); })
+      .then(function(id){ return id ? readFile(id).then(function(t){ return {id:id, text:t}; })
+                                    : {id:null, text:null}; })
+      .then(function(cur){
+        var add = rows;
+        if (cur.text) {
+          add = rows.filter(function(r){ return cur.text.indexOf(r) < 0; });
+        }
+        if (!add.length) throw new Error("none");
+        added = add.length;
+        var body;
+        if (cur.text == null || !cur.text.trim()) {
+          body = HEADER + "\n" + add.join("\n") + "\n";
+        } else {
+          body = cur.text.replace(/\n*$/, "\n") + add.join("\n") + "\n";
+        }
+        return cur.id ? updateFile(cur.id, body) : createFile(body);
+      })
+      .then(function(){
+        busy(false);
+        say(added + "行を " + FILENAME + " に書き出しました");
+      })
+      .catch(function(e){
+        busy(false);
+        if (e.message === "none") { say("追記する新しい行はありません"); return; }
+        say(e.message || "書き出しに失敗しました", true);
+      });
+  });
+})();
+
+(function(){
+  var tabs = document.getElementById("tabs");
+  tabs.addEventListener("click", function(e){
+    var b = e.target.closest("button");
+    if (!b) return;
+    var t = b.dataset.tab;
+    [].forEach.call(tabs.querySelectorAll("button"), function(x){ x.classList.toggle("on", x === b); });
+    document.getElementById("tab-menu").classList.toggle("on", t === "menu");
+    document.getElementById("tab-log").classList.toggle("on", t === "log");
+    document.body.classList.toggle("log-view", t === "log");
+    window.scrollTo(0, 0);
+  });
+})();
+</script>
+</body>
+</html>
