@@ -213,7 +213,13 @@ body.log-view .bar{display:none}
   </div>
 
   <h2>体重の推移</h2>
-  <div class="card"><table id="bwTable"></table></div>
+  <div class="card">
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <input id="bwInput" type="number" inputmode="decimal" step="0.1" placeholder="今日の体重 kg" style="flex:1;min-width:0">
+      <button id="bwSave" class="primary">記録</button>
+    </div>
+    <table id="bwTable"></table>
+  </div>
 
   <h2>直近のライド</h2>
   <div id="lastRide"></div>
@@ -229,6 +235,13 @@ body.log-view .bar{display:none}
 
   <h2>今週の実施状況</h2>
   <div id="week"></div>
+
+  <h2>バックアップ</h2>
+  <div class="card">
+    <div class="note" style="margin:0 0 8px">端末に保存中の記録（「未確定」表示のもの）を書き出します。ときどきClaudeに貼れば、index.htmlに恒久反映されます。</div>
+    <div class="btns"><button id="expAll" class="primary">CSVをコピー</button></div>
+    <textarea id="expOut" readonly style="display:none;width:100%;min-height:120px;margin-top:8px"></textarea>
+  </div>
 
   <footer>records.csv / bodyweight.csv / rides.csv から生成</footer>
 </div>
@@ -425,6 +438,14 @@ const load = (k, def) => { try { return JSON.parse(localStorage.getItem(k)) || d
 const put = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} };
 
 let log = load(LOGKEY, {});
+const ALLKEY = "workout-log-all";
+let logAll = load(ALLKEY, {});
+if (!logAll[TODAY] && Object.keys(log).length) { logAll[TODAY] = log; put(ALLKEY, logAll); }
+if (logAll[TODAY]) log = logAll[TODAY];
+function saveLog(){
+  if (Object.keys(log).length) logAll[TODAY] = log; else delete logAll[TODAY];
+  put(ALLKEY, logAll); put(LOGKEY, log);
+}
 let custom = load(CUSTKEY, []);
 let day = localStorage.getItem(DAYKEY) || defaultDay();
 
@@ -533,7 +554,7 @@ $("list").addEventListener("click", e => {
 
   if (act === "info") { showInfo(item); return; }
   if (act === "open") { card.classList.toggle("open"); return; }
-  if (act === "undo") { delete log[k]; put(LOGKEY, log); render(); return; }
+  if (act === "undo") { delete log[k]; saveLog(); render(); return; }
   if (act === "del") {
     if (!confirm(item.ex + " を削除しますか？")) return;
     custom = custom.filter(c => key(c) !== k); put(CUSTKEY, custom); render(); return;
@@ -542,7 +563,7 @@ $("list").addEventListener("click", e => {
     const get = f => { const i = card.querySelector('[data-f="' + f + '"]'); return i && i.value !== "" ? Number(i.value) : null; };
     if (item.target.disp && get("reps") == null) log[k] = {disp: item.target.disp};
     else log[k] = {kg: get("kg"), reps: get("reps"), sets: get("sets")};
-    put(LOGKEY, log); render();
+    saveLog(); render();
   }
 });
 
@@ -636,7 +657,7 @@ function copyOut(){
 $("copy").addEventListener("click", copyOut);
 $("copy2").addEventListener("click", copyOut);
 $("reset").addEventListener("click", () => {
-  if (confirm("今日の記録を消します。よろしいですか？")) { log = {}; put(LOGKEY, log); render(); }
+  if (confirm("今日の記録を消します。よろしいですか？")) { log = {}; saveLog(); render(); }
 });
 
 render();
@@ -645,12 +666,13 @@ render();
 (function(){
 
 /* ===== データ（CSVから生成・直接編集しない） ===== */
-const GENERATED = "2026-08-17";
+const GENERATED = "2026-08-20";
 const TARGET_WEIGHT = 70.0;
 
 const BODYWEIGHT = [
   {date:"2026-08-11", kg:86.8},
-  {date:"2026-08-17", kg:86.2}
+  {date:"2026-08-17", kg:86.2},
+  {date:"2026-08-20", kg:87.0}
 ];
 
 const RECORDS = [
@@ -670,7 +692,16 @@ const RECORDS = [
   {date:"2026-08-16", day:"チョコザップ", ex:"アブベンチ", reps:20, sets:2, note:"自重"},
   {date:"2026-08-16", day:"チョコザップ", ex:"プランク", disp:"30秒", note:""},
   {date:"2026-08-17", day:"チョコザップ", ex:"ウェイトトレーニング", disp:"52分", cal:237, hr:94, min:52, note:"21:22〜22:14。Garmin側のセット情報はStravaに連携されないため種目・重量は未記録"},
-  {date:"2026-08-17", day:"チョコザップ", ex:"エアロバイク", disp:"14分", note:"22:15〜22:29 ・107kcal ・平均109bpm（Stravaでは距離0のRide）"}
+  {date:"2026-08-17", day:"チョコザップ", ex:"エアロバイク", disp:"14分", note:"22:15〜22:29 ・107kcal ・平均109bpm（Stravaでは距離0のRide）"},
+  {date:"2026-08-19", day:"B", ex:"ルーマニアンデッドリフト", kg:40, reps:8, sets:3, note:"Stravaに該当アクティビティなし"},
+  {date:"2026-08-20", day:"A", ex:"スミスマシン・スクワット", kg:40, reps:8, sets:3, cal:265, hr:99, min:53, note:"06:26〜07:19。カロリー・心拍・時間はセッション全体の値"},
+  {date:"2026-08-20", day:"A", ex:"レッグプレス", kg:153, reps:15, sets:3, note:"Hammer Strength Linear Leg Press（本体53kg＋25kg×4枚）。15回できたので次回203kgへ"},
+  {date:"2026-08-20", day:"A", ex:"ホリゾンタルカーフ", kg:60, reps:15, sets:3, note:""},
+  {date:"2026-08-20", day:"A", ex:"チェストプレス", kg:70, reps:10, sets:3, note:""},
+  {date:"2026-08-20", day:"A", ex:"アブドミナル", kg:34, reps:10, sets:3, note:""},
+  {date:"2026-08-20", day:"A", ex:"ワイドスクワット", kg:50, reps:8, sets:3, note:""},
+  {date:"2026-08-20", day:"A", ex:"ベンチプレス", kg:40, reps:8, sets:3, note:"メニュー側では「バーベル」表記"},
+  {date:"2026-08-20", day:"A", ex:"ヒップアダクション", kg:60, reps:10, sets:3, note:""}
 ];
 
 const RIDES = [
@@ -683,6 +714,33 @@ const RIDES = [
    power:{"5秒":454,"1分":304,"5分":206,"20分":157,"1時間":137},
    note:"今季最長。停止時間1時間54分"}
 ];
+
+/* ===== 端末に保存した記録をマージ（GitHub更新なしで即反映） ===== */
+const lsGet = (k, def) => { try { return JSON.parse(localStorage.getItem(k)) || def; } catch(e){ return def; } };
+const LOCALLOG = lsGet("workout-log-all", {});
+const LOCALBW = lsGet("workout-bw", {});
+const DAYLBL = {A:"A", B:"B", ZA:"チョコザップ", ZB:"チョコザップ"};
+
+Object.keys(LOCALLOG).forEach(function(d){
+  if (RECORDS.some(function(r){ return r.date === d; })) return; // 確定済みは端末側を無視
+  const rows = LOCALLOG[d] || {};
+  Object.keys(rows).forEach(function(k){
+    const r = rows[k];
+    const parts = k.split("|");
+    const o = {date:d, day:DAYLBL[parts[0]] || parts[0], ex:parts.slice(1).join("|"),
+      note:"端末に保存（未確定）", local:true};
+    if (r.disp) o.disp = r.disp;
+    else { o.kg = r.kg; o.reps = r.reps; o.sets = r.sets; }
+    RECORDS.push(o);
+  });
+});
+RECORDS.sort(function(a,b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+
+Object.keys(LOCALBW).forEach(function(d){
+  if (BODYWEIGHT.some(function(b){ return b.date === d; })) return;
+  BODYWEIGHT.push({date:d, kg:Number(LOCALBW[d]), local:true});
+});
+BODYWEIGHT.sort(function(a,b){ return a.date < b.date ? -1 : 1; });
 
 /* ===== ユーティリティ ===== */
 const $ = id => document.getElementById(id);
@@ -719,6 +777,32 @@ $("augKm").textContent = augKm.toFixed(0);
   h += '</tbody>';
   $("bwTable").innerHTML = h;
 })();
+
+/* ===== 体重の記録・バックアップ書き出し ===== */
+$("bwSave").addEventListener("click", function(){
+  const v = Number($("bwInput").value);
+  if (!v) return;
+  const t = new Date(), p = n => String(n).padStart(2,"0");
+  const d = t.getFullYear() + "-" + p(t.getMonth()+1) + "-" + p(t.getDate());
+  LOCALBW[d] = v;
+  try { localStorage.setItem("workout-bw", JSON.stringify(LOCALBW)); } catch(e){}
+  location.reload();
+});
+
+$("expAll").addEventListener("click", function(){
+  const lines = ["date,day,exercise,weight_kg,reps,sets,calories,avg_hr,duration_min,note"];
+  RECORDS.filter(function(r){ return r.local; }).forEach(function(r){
+    lines.push([r.date, r.day, r.ex, r.kg != null ? r.kg : "", r.reps != null ? r.reps : "",
+      r.sets != null ? r.sets : "", "", "", "", r.disp || ""].join(","));
+  });
+  BODYWEIGHT.filter(function(b){ return b.local; }).forEach(function(b){
+    lines.push([b.date, "体重", "", b.kg, "", "", "", "", "", ""].join(","));
+  });
+  const txt = lines.length > 1 ? lines.join("\n") : "書き出す記録がありません";
+  const ta = $("expOut");
+  ta.style.display = "block"; ta.value = txt; ta.select();
+  try { navigator.clipboard.writeText(txt); } catch(e){}
+});
 
 /* ===== 直近のライド ===== */
 (function(){
