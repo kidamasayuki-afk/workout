@@ -206,6 +206,13 @@ body.log-view .bar{display:none}
   
   <div class="updated" id="updated"></div>
 
+  <div class="card" style="padding:10px 12px;margin-bottom:10px">
+    <div style="display:flex;gap:8px;align-items:center">
+      <button id="syncPull" class="primary" style="white-space:nowrap">Driveから同期</button>
+      <span class="note" id="syncStatus" style="margin:0;flex:1;min-width:0;font-size:12px"></span>
+    </div>
+  </div>
+
   <div class="grid">
     <div class="kpi"><div class="label">体重</div><div class="value" id="bwNow">–</div><div class="sub" id="bwDate"></div></div>
     <div class="kpi"><div class="label">目標まで</div><div class="value" id="bwGap">–</div><div class="sub">目標 70.0kg</div></div>
@@ -243,7 +250,7 @@ body.log-view .bar{display:none}
     <textarea id="expOut" readonly style="display:none;width:100%;min-height:120px;margin-top:8px"></textarea>
   </div>
 
-  <footer>records.csv / bodyweight.csv / rides.csv から生成</footer>
+  <footer>確定データ ＋ Drive同期 ＋ Strava自動連携</footer>
 </div>
   </section>
 </div>
@@ -266,6 +273,54 @@ body.log-view .bar{display:none}
 </div></div>
 
 <script>
+/* ===== Drive読み取り（ログ画面用・drive.fileスコープ） ===== */
+var WDrive = (function(){
+  var CLIENT_ID = "482276144987-4n7pspeggai3l12l94jj81rpqmk9ga1t.apps.googleusercontent.com";
+  var SCOPE = "https://www.googleapis.com/auth/drive.file";
+  var token = null, tc = null;
+
+  function getToken(interactive){
+    return new Promise(function(resolve, reject){
+      if (token) { resolve(token); return; }
+      if (!window.google || !google.accounts || !google.accounts.oauth2) {
+        reject(new Error("Googleのライブラリが読み込めていません")); return;
+      }
+      if (!tc) {
+        tc = google.accounts.oauth2.initTokenClient({
+          client_id: CLIENT_ID, scope: SCOPE, callback: function(){}
+        });
+      }
+      tc.callback = function(res){
+        if (res.error || !res.access_token) { reject(new Error("認証が必要です")); return; }
+        token = res.access_token; resolve(token);
+      };
+      tc.error_callback = function(){ reject(new Error("認証が必要です")); };
+      try { tc.requestAccessToken({prompt: interactive ? "consent" : ""}); }
+      catch(e){ reject(new Error("認証が必要です")); }
+    });
+  }
+
+  function api(url){
+    return fetch(url, {headers:{Authorization:"Bearer " + token}}).then(function(r){
+      if (r.status === 401) { token = null; throw new Error("認証の有効期限が切れました。もう一度押してください"); }
+      return r;
+    });
+  }
+
+  function find(name){
+    var q = encodeURIComponent("name='" + name + "' and trashed=false");
+    return api("https://www.googleapis.com/drive/v3/files?q=" + q + "&fields=files(id)")
+      .then(function(r){ return r.json(); })
+      .then(function(j){ return (j.files && j.files[0]) ? j.files[0].id : null; });
+  }
+
+  function read(id){
+    return api("https://www.googleapis.com/drive/v3/files/" + id + "?alt=media")
+      .then(function(r){ return r.ok ? r.text() : null; });
+  }
+
+  return {token:getToken, find:find, read:read};
+})();
 (function(){
 
 /* ===== プラン（README.md「4. 現在のトレーニングプラン」準拠） =====
@@ -666,16 +721,16 @@ render();
 (function(){
 
 /* ===== データ（CSVから生成・直接編集しない） ===== */
-const GENERATED = "2026-08-20";
+const GENERATED = "2026-08-22";
 const TARGET_WEIGHT = 70.0;
 
-const BODYWEIGHT = [
+const BASE_BODYWEIGHT = [
   {date:"2026-08-11", kg:86.8},
   {date:"2026-08-17", kg:86.2},
   {date:"2026-08-20", kg:87.0}
 ];
 
-const RECORDS = [
+const BASE_RECORDS = [
   {date:"2026-08-11", day:"B", ex:"レッグプレス", kg:80, reps:15, sets:3, cal:178, hr:93, min:38, note:"ジム初回。15回できたので次回95kgへ"},
   {date:"2026-08-11", day:"B", ex:"ヒップグルート", kg:61, reps:10, sets:3, note:""},
   {date:"2026-08-11", day:"B", ex:"トーソローテーション", kg:50, reps:15, sets:1, note:"50kgでは腰と尻に効いてしまった"},
@@ -701,10 +756,14 @@ const RECORDS = [
   {date:"2026-08-20", day:"A", ex:"アブドミナル", kg:34, reps:10, sets:3, note:""},
   {date:"2026-08-20", day:"A", ex:"ワイドスクワット", kg:50, reps:8, sets:3, note:""},
   {date:"2026-08-20", day:"A", ex:"ベンチプレス", kg:40, reps:8, sets:3, note:"メニュー側では「バーベル」表記"},
-  {date:"2026-08-20", day:"A", ex:"ヒップアダクション", kg:60, reps:10, sets:3, note:""}
+  {date:"2026-08-20", day:"A", ex:"ヒップアダクション", kg:60, reps:10, sets:3, note:""},
+  {date:"2026-08-21", day:"チョコザップ", ex:"チェストプレス", kg:75, reps:10, sets:3, cal:107, hr:100, min:19, note:"17:03〜17:22。65kg→75kgで自己ベスト更新（Strava計測19分は実態より短い）"},
+  {date:"2026-08-21", day:"チョコザップ", ex:"ラットプルダウン", kg:45, reps:10, sets:3, note:"鎖骨まで引くとギリギリ。余裕を持って10回引けたら50kgへ"},
+  {date:"2026-08-21", day:"チョコザップ", ex:"アブダクション", kg:85, reps:10, sets:3, note:"スタック上限85kg。開いた位置で止めると10回できつい。中殿筋に明確に効いた。今後は止めありを標準に"},
+  {date:"2026-08-21", day:"チョコザップ", ex:"バイセップスカール", kg:20, reps:10, sets:3, note:"初回実測。他種目の後で疲労がある状態のため参考値"}
 ];
 
-const RIDES = [
+let RIDES = [
   {date:"2026-07-19", km:60.7, moving:8675, elapsed:11194, elev:194, spd:25.2, cal:1352, re:204},
   {date:"2026-08-01", km:76.1, moving:11817, elapsed:16058, elev:150, spd:23.2, cal:1703},
   {date:"2026-08-02", km:55.1, moving:8010, elapsed:10542, elev:160, spd:24.8, cal:1267},
@@ -712,35 +771,122 @@ const RIDES = [
   {date:"2026-08-16", km:117.2, moving:17889, elapsed:24711, elev:513, spd:23.6, maxSpd:48.4,
    watts:122, hr:130, maxHr:162, cad:77, cal:2553, re:221, prs:15,
    power:{"5秒":454,"1分":304,"5分":206,"20分":157,"1時間":137},
-   note:"今季最長。停止時間1時間54分"}
+   note:"今季最長。停止時間1時間54分"},
+  {date:"2026-08-22", km:66.1, moving:9511, elapsed:10646, elev:251, spd:25.0, maxSpd:43.7,
+   watts:133, hr:134, maxHr:152, cad:79, cal:1474, re:142, prs:1,
+   power:{"5秒":403,"1分":263,"5分":169,"20分":149,"1時間":138},
+   note:"08:50〜11:47。停止時間19分。PR1個（守谷TT北方向へ）"}
 ];
 
-/* ===== 端末に保存した記録をマージ（GitHub更新なしで即反映） ===== */
+/* ===== 端末・Driveの記録をマージ（GitHub更新なしで即反映） ===== */
 const lsGet = (k, def) => { try { return JSON.parse(localStorage.getItem(k)) || def; } catch(e){ return def; } };
 const LOCALLOG = lsGet("workout-log-all", {});
 const LOCALBW = lsGet("workout-bw", {});
 const DAYLBL = {A:"A", B:"B", ZA:"チョコザップ", ZB:"チョコザップ"};
+const CACHEKEY = "workout-drive-cache";
 
-Object.keys(LOCALLOG).forEach(function(d){
-  if (RECORDS.some(function(r){ return r.date === d; })) return; // 確定済みは端末側を無視
-  const rows = LOCALLOG[d] || {};
-  Object.keys(rows).forEach(function(k){
-    const r = rows[k];
-    const parts = k.split("|");
-    const o = {date:d, day:DAYLBL[parts[0]] || parts[0], ex:parts.slice(1).join("|"),
-      note:"端末に保存（未確定）", local:true};
-    if (r.disp) o.disp = r.disp;
-    else { o.kg = r.kg; o.reps = r.reps; o.sets = r.sets; }
+let RECORDS = [], BODYWEIGHT = [];
+let SESSIONS = [];   // sessions.json（Stravaのジム記録）
+let SESSMETA = {};   // 日付 → {min, cal, hr} を集計したもの
+
+/* Driveのinbox CSVを行オブジェクトに変換 */
+function parseInbox(text){
+  const out = {rec:[], bw:[]};
+  if (!text) return out;
+  text.split("\n").forEach(function(line){
+    line = line.replace(/\r$/, "");
+    if (!line) return;
+    const c = line.split(",");
+    const date = (c[0] || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+    const day = (c[1] || "").trim();
+    if (day === "体重") {
+      const kg = Number(c[3]);
+      if (kg) out.bw.push({date:date, kg:kg});
+      return;
+    }
+    const ex = (c[2] || "").trim();
+    if (!ex) return;
+    const o = {date:date, day:DAYLBL[day] || day, ex:ex, note:"Drive同期（未確定）", drive:true};
+    const kg = Number(c[3]), reps = Number(c[4]), sets = Number(c[5]);
+    if (kg) o.kg = kg;
+    if (reps) o.reps = reps;
+    if (sets) o.sets = sets;
+    if (!kg && !reps && !sets) o.disp = c.slice(9).join(",").trim() || "実施";
+    out.rec.push(o);
+  });
+  return out;
+}
+
+/* 優先順位：確定データ ＞ Drive ＞ 端末 */
+function buildData(){
+  const drive = parseInbox(localStorage.getItem(CACHEKEY));
+
+  RECORDS = BASE_RECORDS.slice();
+  const fixed = {}, fromDrive = {};
+  RECORDS.forEach(function(r){ fixed[r.date] = true; });
+
+  drive.rec.forEach(function(o){
+    if (fixed[o.date]) return;
+    fromDrive[o.date] = true;
     RECORDS.push(o);
   });
-});
-RECORDS.sort(function(a,b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
 
-Object.keys(LOCALBW).forEach(function(d){
-  if (BODYWEIGHT.some(function(b){ return b.date === d; })) return;
-  BODYWEIGHT.push({date:d, kg:Number(LOCALBW[d]), local:true});
-});
-BODYWEIGHT.sort(function(a,b){ return a.date < b.date ? -1 : 1; });
+  Object.keys(LOCALLOG).forEach(function(d){
+    if (fixed[d] || fromDrive[d]) return;
+    const rows = LOCALLOG[d] || {};
+    Object.keys(rows).forEach(function(k){
+      const r = rows[k];
+      const parts = k.split("|");
+      const o = {date:d, day:DAYLBL[parts[0]] || parts[0], ex:parts.slice(1).join("|"),
+        note:"端末に保存（未確定）", local:true};
+      if (r.disp) o.disp = r.disp;
+      else { o.kg = r.kg; o.reps = r.reps; o.sets = r.sets; }
+      RECORDS.push(o);
+    });
+  });
+  /* Stravaのセッションを日付ごとに集計（時間・カロリー・心拍） */
+  SESSMETA = {};
+  SESSIONS.forEach(function(s){
+    const m = SESSMETA[s.date] || (SESSMETA[s.date] = {min:0, cal:0, hrSum:0, hrMin:0});
+    m.min += s.min || 0;
+    m.cal += s.cal || 0;
+    if (s.hr && s.min) { m.hrSum += s.hr * s.min; m.hrMin += s.min; }
+  });
+  Object.keys(SESSMETA).forEach(function(d){
+    const m = SESSMETA[d];
+    if (m.hrMin) m.hr = Math.round(m.hrSum / m.hrMin);
+  });
+
+  /* HTMLに記録がない日は、Stravaのセッションだけを行として立てる */
+  const hasRec = {};
+  RECORDS.forEach(function(r){ hasRec[r.date] = true; });
+  SESSIONS.forEach(function(s){
+    if (hasRec[s.date]) return;
+    RECORDS.push({date:s.date, day:"—", ex:s.label || "トレーニング",
+      disp:(s.min || 0) + "分",
+      note:"Strava連携（" + (s.start || "") + "〜）。種目・重量は未記録",
+      strava:true});
+  });
+
+  RECORDS.sort(function(a,b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+
+  BODYWEIGHT = BASE_BODYWEIGHT.slice();
+  const seen = {};
+  BODYWEIGHT.forEach(function(b){ seen[b.date] = true; });
+  drive.bw.forEach(function(b){
+    if (seen[b.date]) return;
+    seen[b.date] = true;
+    BODYWEIGHT.push({date:b.date, kg:b.kg, drive:true});
+  });
+  Object.keys(LOCALBW).forEach(function(d){
+    if (seen[d]) return;
+    seen[d] = true;
+    BODYWEIGHT.push({date:d, kg:Number(LOCALBW[d]), local:true});
+  });
+  BODYWEIGHT.sort(function(a,b){ return a.date < b.date ? -1 : 1; });
+}
+buildData();
 
 /* ===== ユーティリティ ===== */
 const $ = id => document.getElementById(id);
@@ -748,171 +894,233 @@ const hm = s => Math.floor(s/3600) + "時間" + String(Math.floor(s%3600/60)).pa
 const md = d => Number(d.slice(5,7)) + "/" + Number(d.slice(8,10));
 function row(k, v){ return '<tr><td>' + k + '</td><td class="num">' + v + '</td></tr>'; }
 
-/* ===== サマリー ===== */
-$("updated").textContent = "最終更新 " + GENERATED.replace(/-/g,"/");
-const bwLast = BODYWEIGHT[BODYWEIGHT.length-1];
-if (bwLast) {
-  $("bwNow").textContent = bwLast.kg.toFixed(1);
-  $("bwDate").textContent = md(bwLast.date) + " 時点";
-  $("bwGap").textContent = "-" + (bwLast.kg - TARGET_WEIGHT).toFixed(1);
-}
-const augKm = RIDES.filter(r => r.date.slice(0,7) === "2026-08").reduce((a,r) => a + r.km, 0);
-$("augKm").textContent = augKm.toFixed(0);
-
-/* ===== 体重の推移 ===== */
-(function(){
-  let h = '<thead><tr><th>日付</th><th>体重</th><th>前回比</th></tr></thead><tbody>';
-  BODYWEIGHT.slice().reverse().forEach((b, i, arr) => {
-    const prev = arr[i+1];
-    let diff = '<span class="flat">–</span>';
-    if (prev) {
-      const d = +(b.kg - prev.kg).toFixed(1);
-      if (d < 0) diff = '<span class="up">' + d.toFixed(1) + '</span>';
-      else if (d > 0) diff = '<span class="down">+' + d.toFixed(1) + '</span>';
-      else diff = '<span class="flat">±0</span>';
-    }
-    h += '<tr><td>' + md(b.date) + '</td><td class="num">' + b.kg.toFixed(1) +
-      ' kg</td><td class="num">' + diff + '</td></tr>';
-  });
-  h += '</tbody>';
-  $("bwTable").innerHTML = h;
-})();
-
-/* ===== 体重の記録・バックアップ書き出し ===== */
-$("bwSave").addEventListener("click", function(){
-  const v = Number($("bwInput").value);
-  if (!v) return;
-  const t = new Date(), p = n => String(n).padStart(2,"0");
-  const d = t.getFullYear() + "-" + p(t.getMonth()+1) + "-" + p(t.getDate());
-  LOCALBW[d] = v;
-  try { localStorage.setItem("workout-bw", JSON.stringify(LOCALBW)); } catch(e){}
-  location.reload();
-});
-
-$("expAll").addEventListener("click", function(){
-  const lines = ["date,day,exercise,weight_kg,reps,sets,calories,avg_hr,duration_min,note"];
-  RECORDS.filter(function(r){ return r.local; }).forEach(function(r){
-    lines.push([r.date, r.day, r.ex, r.kg != null ? r.kg : "", r.reps != null ? r.reps : "",
-      r.sets != null ? r.sets : "", "", "", "", r.disp || ""].join(","));
-  });
-  BODYWEIGHT.filter(function(b){ return b.local; }).forEach(function(b){
-    lines.push([b.date, "体重", "", b.kg, "", "", "", "", "", ""].join(","));
-  });
-  const txt = lines.length > 1 ? lines.join("\n") : "書き出す記録がありません";
-  const ta = $("expOut");
-  ta.style.display = "block"; ta.value = txt; ta.select();
-  try { navigator.clipboard.writeText(txt); } catch(e){}
-});
-
-/* ===== 直近のライド ===== */
-(function(){
-  const last = RIDES.slice().sort((a,b) => a.date < b.date ? -1 : 1).pop();
-  if (!last) { $("lastRide").innerHTML = '<div class="card"><span class="flat">記録なし</span></div>'; return; }
-  let h = '<div class="grid"><div class="kpi hero"><div class="label">距離</div><div class="value">' +
-    last.km.toFixed(1) + '</div><div class="sub">km</div></div>' +
-    '<div class="kpi"><div class="label">獲得標高</div><div class="value">' + last.elev + '</div><div class="sub">m</div></div>' +
-    '<div class="kpi"><div class="label">平均速度</div><div class="value">' + last.spd.toFixed(1) + '</div><div class="sub">km/h</div></div></div>';
-  h += '<div class="card"><div class="sess-date">' + last.date.replace(/-/g,"/") + '</div><table><tbody>' +
-    row("走行時間", hm(last.moving)) +
-    row("経過時間", hm(last.elapsed)) +
-    (last.watts ? row("平均パワー", last.watts + " W") : "") +
-    (last.hr ? row("平均心拍", last.hr + " bpm（最大 " + last.maxHr + "）") : "") +
-    (last.cad ? row("平均ケイデンス", last.cad + " rpm") : "") +
-    (last.maxSpd ? row("最高速度", last.maxSpd.toFixed(1) + " km/h") : "") +
-    row("消費カロリー", last.cal.toLocaleString() + " kcal") +
-    (last.re ? row("Relative Effort", last.re) : "") +
-    (last.prs ? row("アチーブメント", last.prs + " 個") : "") +
-    '</tbody></table>' + (last.note ? '<div class="note">' + last.note + '</div>' : '') + '</div>';
-  if (last.power) {
-    h += '<div class="card"><div class="note" style="margin:0 0 6px">ベストパワー</div><table><tbody>';
-    for (const k in last.power) h += row(k, last.power[k] + " W");
-    h += '</tbody></table></div>';
+let bound = false;
+function renderLog(){
+  /* ===== サマリー ===== */
+  $("updated").textContent = "最終更新 " + GENERATED.replace(/-/g,"/");
+  const bwLast = BODYWEIGHT[BODYWEIGHT.length-1];
+  if (bwLast) {
+    $("bwNow").textContent = bwLast.kg.toFixed(1);
+    $("bwDate").textContent = md(bwLast.date) + " 時点";
+    $("bwGap").textContent = "-" + (bwLast.kg - TARGET_WEIGHT).toFixed(1);
   }
-  $("lastRide").innerHTML = h;
-})();
+  const augKm = RIDES.filter(r => r.date.slice(0,7) === "2026-08").reduce((a,r) => a + r.km, 0);
+  $("augKm").textContent = augKm.toFixed(0);
 
-/* ===== ライド履歴 ===== */
-(function(){
-  let h = '<thead><tr><th>日付</th><th>距離</th><th>時間</th><th>標高</th><th>平均</th><th>kcal</th></tr></thead><tbody>';
-  RIDES.slice().reverse().forEach(r => {
-    h += '<tr><td>' + md(r.date) + '</td><td class="num">' + r.km.toFixed(1) + '</td><td class="num">' +
-      hm(r.moving).replace("時間",":").replace("分","") + '</td><td class="num">' + r.elev + '</td><td class="num">' +
-      r.spd.toFixed(1) + '</td><td class="num">' + r.cal.toLocaleString() + '</td></tr>';
-  });
-  h += '</tbody>';
-  $("rideTable").innerHTML = h;
-})();
-
-/* ===== 種目別の推移 ===== */
-(function(){
-  const byEx = {};
-  RECORDS.filter(r => r.kg).forEach(r => { (byEx[r.ex] = byEx[r.ex] || []).push(r); });
-  let h = '<thead><tr><th>種目</th><th>最新</th><th>前回比</th><th>回×セット</th></tr></thead><tbody>';
-  Object.keys(byEx).forEach(ex => {
-    const list = byEx[ex];
-    const last = list[list.length-1];
-    let diff = '<span class="flat">–</span>';
-    if (list.length > 1) {
-      const d = last.kg - list[list.length-2].kg;
-      if (d > 0) diff = '<span class="up">+' + d + '</span>';
-      else if (d < 0) diff = '<span class="down">' + d + '</span>';
-      else diff = '<span class="flat">±0</span>';
-    }
-    h += '<tr><td>' + ex + '</td><td class="num">' + last.kg + ' kg</td><td class="num">' + diff +
-      '</td><td class="num">' + last.reps + '×' + last.sets + '</td></tr>';
-  });
-  h += '</tbody>';
-  $("exTable").innerHTML = h;
-})();
-
-/* ===== セッション履歴 ===== */
-(function(){
-  const dates = [...new Set(RECORDS.map(r => r.date))].sort().reverse();
-  let h = '';
-  dates.forEach(d => {
-    const rows = RECORDS.filter(r => r.date === d);
-    const head = rows.find(r => r.cal) || {};
-    h += '<div class="card"><div class="sess-date">' + d.replace(/-/g,"/") +
-      '<span class="tag">' + rows[0].day + '</span></div>';
-    const meta = [];
-    if (head.min) meta.push(head.min + "分");
-    if (head.cal) meta.push(head.cal + "kcal");
-    if (head.hr) meta.push("平均" + head.hr + "bpm");
-    h += '<div class="sess-meta">' + meta.join(" ・ ") + '</div><table><tbody>';
-    rows.forEach(r => {
-      h += '<tr><td>' + r.ex + (r.note ? '<div class="note">' + r.note + '</div>' : '') +
-        '</td><td class="num">' + (r.disp ? r.disp : (r.kg ? r.kg + 'kg × ' : '自重 × ') + r.reps + ' × ' + r.sets) + '</td></tr>';
+  /* ===== 体重の推移 ===== */
+  (function(){
+    let h = '<thead><tr><th>日付</th><th>体重</th><th>前回比</th></tr></thead><tbody>';
+    BODYWEIGHT.slice().reverse().forEach((b, i, arr) => {
+      const prev = arr[i+1];
+      let diff = '<span class="flat">–</span>';
+      if (prev) {
+        const d = +(b.kg - prev.kg).toFixed(1);
+        if (d < 0) diff = '<span class="up">' + d.toFixed(1) + '</span>';
+        else if (d > 0) diff = '<span class="down">+' + d.toFixed(1) + '</span>';
+        else diff = '<span class="flat">±0</span>';
+      }
+      h += '<tr><td>' + md(b.date) + '</td><td class="num">' + b.kg.toFixed(1) +
+        ' kg</td><td class="num">' + diff + '</td></tr>';
     });
-    h += '</tbody></table></div>';
+    h += '</tbody>';
+    $("bwTable").innerHTML = h;
+  })();
+
+  /* ===== 体重の記録・バックアップ書き出し（初回のみ登録） ===== */
+  if (!bound) {
+  $("bwSave").addEventListener("click", function(){
+    const v = Number($("bwInput").value);
+    if (!v) return;
+    const t = new Date(), p = n => String(n).padStart(2,"0");
+    const d = t.getFullYear() + "-" + p(t.getMonth()+1) + "-" + p(t.getDate());
+    LOCALBW[d] = v;
+    try { localStorage.setItem("workout-bw", JSON.stringify(LOCALBW)); } catch(e){}
+    location.reload();
   });
-  $("sessions").innerHTML = h;
+
+  $("expAll").addEventListener("click", function(){
+    const lines = ["date,day,exercise,weight_kg,reps,sets,calories,avg_hr,duration_min,note"];
+    RECORDS.filter(function(r){ return r.local; }).forEach(function(r){
+      lines.push([r.date, r.day, r.ex, r.kg != null ? r.kg : "", r.reps != null ? r.reps : "",
+        r.sets != null ? r.sets : "", "", "", "", r.disp || ""].join(","));
+    });
+    BODYWEIGHT.filter(function(b){ return b.local; }).forEach(function(b){
+      lines.push([b.date, "体重", "", b.kg, "", "", "", "", "", ""].join(","));
+    });
+    const txt = lines.length > 1 ? lines.join("\n") : "書き出す記録がありません";
+    const ta = $("expOut");
+    ta.style.display = "block"; ta.value = txt; ta.select();
+    try { navigator.clipboard.writeText(txt); } catch(e){}
+  });
+
+  }
+
+  /* ===== 直近のライド ===== */
+  (function(){
+    const last = RIDES.slice().sort((a,b) => a.date < b.date ? -1 : 1).pop();
+    if (!last) { $("lastRide").innerHTML = '<div class="card"><span class="flat">記録なし</span></div>'; return; }
+    let h = '<div class="grid"><div class="kpi hero"><div class="label">距離</div><div class="value">' +
+      last.km.toFixed(1) + '</div><div class="sub">km</div></div>' +
+      '<div class="kpi"><div class="label">獲得標高</div><div class="value">' + last.elev + '</div><div class="sub">m</div></div>' +
+      '<div class="kpi"><div class="label">平均速度</div><div class="value">' + last.spd.toFixed(1) + '</div><div class="sub">km/h</div></div></div>';
+    h += '<div class="card"><div class="sess-date">' + last.date.replace(/-/g,"/") + '</div><table><tbody>' +
+      row("走行時間", hm(last.moving)) +
+      row("経過時間", hm(last.elapsed)) +
+      (last.watts ? row("平均パワー", last.watts + " W") : "") +
+      (last.hr ? row("平均心拍", last.hr + " bpm（最大 " + last.maxHr + "）") : "") +
+      (last.cad ? row("平均ケイデンス", last.cad + " rpm") : "") +
+      (last.maxSpd ? row("最高速度", last.maxSpd.toFixed(1) + " km/h") : "") +
+      row("消費カロリー", last.cal.toLocaleString() + " kcal") +
+      (last.re ? row("Relative Effort", last.re) : "") +
+      (last.prs ? row("アチーブメント", last.prs + " 個") : "") +
+      '</tbody></table>' + (last.note ? '<div class="note">' + last.note + '</div>' : '') + '</div>';
+    if (last.power) {
+      h += '<div class="card"><div class="note" style="margin:0 0 6px">ベストパワー</div><table><tbody>';
+      for (const k in last.power) h += row(k, last.power[k] + " W");
+      h += '</tbody></table></div>';
+    }
+    $("lastRide").innerHTML = h;
+  })();
+
+  /* ===== ライド履歴 ===== */
+  (function(){
+    let h = '<thead><tr><th>日付</th><th>距離</th><th>時間</th><th>標高</th><th>平均</th><th>kcal</th></tr></thead><tbody>';
+    RIDES.slice().reverse().forEach(r => {
+      h += '<tr><td>' + md(r.date) + '</td><td class="num">' + r.km.toFixed(1) + '</td><td class="num">' +
+        hm(r.moving).replace("時間",":").replace("分","") + '</td><td class="num">' + r.elev + '</td><td class="num">' +
+        r.spd.toFixed(1) + '</td><td class="num">' + r.cal.toLocaleString() + '</td></tr>';
+    });
+    h += '</tbody>';
+    $("rideTable").innerHTML = h;
+  })();
+
+  /* ===== 種目別の推移 ===== */
+  (function(){
+    const byEx = {};
+    RECORDS.filter(r => r.kg).forEach(r => { (byEx[r.ex] = byEx[r.ex] || []).push(r); });
+    let h = '<thead><tr><th>種目</th><th>最新</th><th>前回比</th><th>回×セット</th></tr></thead><tbody>';
+    Object.keys(byEx).forEach(ex => {
+      const list = byEx[ex];
+      const last = list[list.length-1];
+      let diff = '<span class="flat">–</span>';
+      if (list.length > 1) {
+        const d = last.kg - list[list.length-2].kg;
+        if (d > 0) diff = '<span class="up">+' + d + '</span>';
+        else if (d < 0) diff = '<span class="down">' + d + '</span>';
+        else diff = '<span class="flat">±0</span>';
+      }
+      h += '<tr><td>' + ex + '</td><td class="num">' + last.kg + ' kg</td><td class="num">' + diff +
+        '</td><td class="num">' + last.reps + '×' + last.sets + '</td></tr>';
+    });
+    h += '</tbody>';
+    $("exTable").innerHTML = h;
+  })();
+
+  /* ===== セッション履歴 ===== */
+  (function(){
+    const dates = [...new Set(RECORDS.map(r => r.date))].sort().reverse();
+    let h = '';
+    dates.forEach(d => {
+      const rows = RECORDS.filter(r => r.date === d);
+      const head = SESSMETA[d] || rows.find(r => r.cal) || {};
+      h += '<div class="card"><div class="sess-date">' + d.replace(/-/g,"/") +
+        '<span class="tag">' + rows[0].day + '</span></div>';
+      const meta = [];
+      if (head.min) meta.push(head.min + "分");
+      if (head.cal) meta.push(head.cal + "kcal");
+      if (head.hr) meta.push("平均" + head.hr + "bpm");
+      h += '<div class="sess-meta">' + meta.join(" ・ ") + '</div><table><tbody>';
+      rows.forEach(r => {
+        h += '<tr><td>' + r.ex + (r.note ? '<div class="note">' + r.note + '</div>' : '') +
+          '</td><td class="num">' + (r.disp ? r.disp : (r.kg ? r.kg + 'kg × ' : '自重 × ') + r.reps + ' × ' + r.sets) + '</td></tr>';
+      });
+      h += '</tbody></table></div>';
+    });
+    $("sessions").innerHTML = h;
+  })();
+
+  /* ===== 今週の実施状況（月〜日） ===== */
+  (function(){
+    const base = new Date();
+    const dow = (base.getDay() + 6) % 7;
+    const mon = new Date(base); mon.setDate(base.getDate() - dow);
+    const labels = ["月","火","水","木","金","土","日"];
+    let h = '<div class="week">';
+    let gym = 0, ride = 0, km = 0;
+    for (let i = 0; i < 7; i++) {
+      const dt = new Date(mon); dt.setDate(mon.getDate() + i);
+      const key = dt.getFullYear() + "-" + String(dt.getMonth()+1).padStart(2,"0") + "-" + String(dt.getDate()).padStart(2,"0");
+      const hasGym = RECORDS.some(r => r.date === key);
+      const dayRides = RIDES.filter(r => r.date === key);
+      if (hasGym) gym++;
+      if (dayRides.length) { ride++; km += dayRides.reduce((a,r) => a + r.km, 0); }
+      const mark = dayRides.length ? "🚴" : hasGym ? "🏋️" : "·";
+      h += '<div class="day' + (hasGym || dayRides.length ? ' done' : '') + '"><div class="d">' +
+        labels[i] + '</div><div class="m">' + mark + '</div></div>';
+    }
+    h += '</div><div class="card" style="margin-top:10px"><table><tbody>' +
+      row("ジム", gym + " 回 / 週2") +
+      row("ライド", ride + " 回 " + (km ? "（" + km.toFixed(0) + "km）" : "")) +
+      '</tbody></table><div class="pbar"><span style="width:' +
+      Math.min(100, Math.round((gym/2)*100)) + '%"></span></div></div>';
+    $("week").innerHTML = h;
+  })();
+  bound = true;
+}
+renderLog();
+
+/* ===== Strava連携（GitHub Actionsが更新するjsonを読む） ===== */
+(function(){
+  const bust = "?t=" + Date.now();
+  const grab = function(name){
+    return fetch(name + bust, {cache:"no-store"})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .catch(function(){ return null; });
+  };
+  Promise.all([grab("rides.json"), grab("sessions.json")]).then(function(res){
+    let changed = false;
+    if (Array.isArray(res[0]) && res[0].length) { RIDES = res[0]; changed = true; }
+    if (Array.isArray(res[1])) { SESSIONS = res[1]; changed = true; }
+    if (!changed) return;
+    buildData();
+    renderLog();
+  });
 })();
 
-/* ===== 今週の実施状況（月〜日） ===== */
+/* ===== Driveから同期 ===== */
 (function(){
-  const base = new Date(GENERATED + "T00:00:00");
-  const dow = (base.getDay() + 6) % 7;
-  const mon = new Date(base); mon.setDate(base.getDate() - dow);
-  const labels = ["月","火","水","木","金","土","日"];
-  let h = '<div class="week">';
-  let gym = 0, ride = 0, km = 0;
-  for (let i = 0; i < 7; i++) {
-    const dt = new Date(mon); dt.setDate(mon.getDate() + i);
-    const key = dt.getFullYear() + "-" + String(dt.getMonth()+1).padStart(2,"0") + "-" + String(dt.getDate()).padStart(2,"0");
-    const hasGym = RECORDS.some(r => r.date === key);
-    const dayRides = RIDES.filter(r => r.date === key);
-    if (hasGym) gym++;
-    if (dayRides.length) { ride++; km += dayRides.reduce((a,r) => a + r.km, 0); }
-    const mark = dayRides.length ? "🚴" : hasGym ? "🏋️" : "·";
-    h += '<div class="day' + (hasGym || dayRides.length ? ' done' : '') + '"><div class="d">' +
-      labels[i] + '</div><div class="m">' + mark + '</div></div>';
+  const btn = $("syncPull"), st = $("syncStatus");
+  const ATKEY = CACHEKEY + "-at";
+  function say(m, bad){ st.textContent = m || ""; st.style.color = bad ? "var(--bad)" : "var(--muted)"; }
+  function stampNow(){
+    const t = new Date(), p = n => String(n).padStart(2,"0");
+    return (t.getMonth()+1) + "/" + t.getDate() + " " + p(t.getHours()) + ":" + p(t.getMinutes());
   }
-  h += '</div><div class="card" style="margin-top:10px"><table><tbody>' +
-    row("ジム", gym + " 回 / 週2") +
-    row("ライド", ride + " 回 " + (km ? "（" + km.toFixed(0) + "km）" : "")) +
-    '</tbody></table><div class="pbar"><span style="width:' +
-    Math.min(100, Math.round((gym/2)*100)) + '%"></span></div></div>';
-  $("week").innerHTML = h;
+  const was = localStorage.getItem(ATKEY);
+  say(was ? "最終同期 " + was : "押すとPC・スマホで記録を共有できます");
+
+  function pull(interactive){
+    btn.disabled = true;
+    say("同期中…");
+    WDrive.token(interactive)
+      .then(function(){ return WDrive.find("workout_inbox.csv"); })
+      .then(function(id){ return id ? WDrive.read(id) : null; })
+      .then(function(text){
+        btn.disabled = false;
+        if (text == null) { say("Driveに workout_inbox.csv がありません", true); return; }
+        try { localStorage.setItem(CACHEKEY, text); localStorage.setItem(ATKEY, stampNow()); } catch(e){}
+        buildData();
+        renderLog();
+        say("最終同期 " + localStorage.getItem(ATKEY));
+      })
+      .catch(function(e){
+        btn.disabled = false;
+        if (!interactive) { say(was ? "最終同期 " + was : "押すとPC・スマホで記録を共有できます"); return; }
+        say(e.message || "同期に失敗しました", true);
+      });
+  }
+  btn.addEventListener("click", function(){ pull(true); });
+  setTimeout(function(){ pull(false); }, 600);
 })();
 
 })();
@@ -1018,8 +1226,13 @@ $("expAll").addEventListener("click", function(){
 
   btn.addEventListener("click", function(){
     var out = document.getElementById("out").value;
-    if (!out) { say("まだ記録がありません", true); return; }
-    var rows = out.split("\n").slice(1).filter(Boolean);
+    var rows = out ? out.split("\n").slice(1).filter(Boolean) : [];
+    try {
+      var bw = JSON.parse(localStorage.getItem("workout-bw") || "{}");
+      Object.keys(bw).forEach(function(d){
+        rows.push([d, "体重", "", bw[d], "", "", "", "", "", ""].join(","));
+      });
+    } catch(e){}
     if (!rows.length) { say("まだ記録がありません", true); return; }
     var added = 0;
 
