@@ -1,0 +1,43 @@
+name: Strava sync
+
+on:
+  schedule:
+    # JST 13:00 と 23:00（UTC表記）。ライドは週末の午前中に終わるので13時便で拾える
+    - cron: "0 4,14 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: strava-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch rides
+        env:
+          STRAVA_CLIENT_ID: ${{ secrets.STRAVA_CLIENT_ID }}
+          STRAVA_CLIENT_SECRET: ${{ secrets.STRAVA_CLIENT_SECRET }}
+          STRAVA_REFRESH_TOKEN: ${{ secrets.STRAVA_REFRESH_TOKEN }}
+        run: python scripts/fetch_strava.py
+
+      - name: Commit if changed
+        run: |
+          if [ -z "$(git status --porcelain rides.json)" ]; then
+            echo "変更なし"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add rides.json
+          git commit -m "Strava: rides.json を更新"
+          git push
