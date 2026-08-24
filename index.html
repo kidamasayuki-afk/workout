@@ -128,6 +128,21 @@ tr:last-child td{border-bottom:none}
 section{display:none}
 section.on{display:block}
 body.log-view .bar{display:none}
+.memoin{display:none;width:100%;padding:9px 8px;font-size:16px;margin-top:8px;
+  min-height:54px;line-height:1.5;resize:vertical}
+.card.open .memoin{display:block}
+.memolbl{display:none;font-size:10px;color:var(--muted);margin-top:8px}
+.card.open .memolbl{display:block}
+.memo-shown{font-size:12px;color:var(--muted);margin-top:4px;white-space:pre-wrap}
+.adv{margin-top:8px;padding:9px 10px;border:1px solid var(--accent);border-radius:8px;
+  font-size:13px;line-height:1.65;white-space:pre-wrap;background:var(--bg)}
+.adv.err{color:var(--bad);border-color:var(--bad)}
+.adv .advhd{display:block;font-size:10px;color:var(--muted);margin-bottom:4px}
+textarea.paste{width:100%;height:130px;padding:10px;font-size:12px;margin-top:8px;line-height:1.5;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.daychip{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:4px 6px 4px 10px;
+  border:1px solid var(--line);border-radius:99px;margin:4px 4px 0 0}
+.daychip button{flex:0 0 auto;padding:2px 7px;font-size:11px;border-radius:99px;line-height:1.4}
 </style>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -143,12 +158,7 @@ body.log-view .bar{display:none}
   
   <div class="updated" id="today"></div>
 
-  <div class="seg" id="seg">
-    <button data-day="A">Day A<span class="cap">プッシュ＋脚・木</span></button>
-    <button data-day="B">Day B<span class="cap">プル＋ヒンジ・月</span></button>
-    <button data-day="ZA">チョコ 朝A<span class="cap">下半身・火</span></button>
-    <button data-day="ZB">チョコ 朝B<span class="cap">上半身・金</span></button>
-  </div>
+  <div class="seg" id="seg"></div>
   <div class="hint" id="hint"></div>
 
   <div id="list"></div>
@@ -163,9 +173,7 @@ body.log-view .bar{display:none}
           <option value="body">自重</option></select></label>
       </div>
       <div class="row">
-        <label>Day<select id="f-day">
-          <option value="A">Day A</option><option value="B">Day B</option>
-          <option value="ZA">チョコ朝A</option><option value="ZB">チョコ朝B</option></select></label>
+        <label>Day<select id="f-day"></select></label>
       </div>
       <div class="row">
         <label>kg<input id="f-kg" type="number" inputmode="decimal"></label>
@@ -177,6 +185,37 @@ body.log-view .bar{display:none}
       </div>
       <div class="btns"><button class="primary" id="addSave">追加する</button></div>
     </div>
+  </div>
+
+
+  <h2>Dayを追加（貼り付け）</h2>
+  <div class="card">
+    <div class="sub">Claudeが出したメニューをそのまま貼って「取り込む」。1行目の # がDay名、以降が種目です。</div>
+    <textarea id="pasteBox" class="paste" placeholder="# 8/24 脚 | 月・予約枠あり
+*スミスマシン・スクワット,40,8,3,バーは僧帽筋の上
+レッグプレス,203,10,1,届かなければ153kgに戻す
+ホリゾンタルカーフ,60,15,3
+デッドバグ,,10,2,左右交互"></textarea>
+    <div class="sub" id="pasteHelp" style="margin-top:6px">書式：種目名,kg,回,セット,メモ　／　kg空欄＝自重　／　種目名の先頭に * でフリーウェイト（要予約枠）扱い</div>
+    <div class="btns">
+      <button class="primary" id="pasteRun">取り込む</button>
+      <button id="pasteClear">クリア</button>
+    </div>
+    <div class="sub" id="pasteStatus"></div>
+    <div id="dayChips" style="margin-top:6px"></div>
+  </div>
+
+  <h2>次の重量アドバイス</h2>
+  <div class="card">
+    <div class="sub">APIキーはこの端末のブラウザにのみ保存されます。共用端末では使い終わったら削除してください。</div>
+    <div class="row" style="display:flex;gap:6px;margin-top:8px">
+      <input id="apiKey" type="password" placeholder="sk-ant-..." style="flex:1;min-width:0;padding:9px 8px;font-size:16px">
+    </div>
+    <div class="btns">
+      <button class="primary" id="apiSave">保存</button>
+      <button id="apiClear">削除</button>
+    </div>
+    <div class="sub" id="apiStatus"></div>
   </div>
 
   <h2>記録の書き出し</h2>
@@ -326,10 +365,10 @@ var WDrive = (function(){
 /* ===== プラン（README.md「4. 現在のトレーニングプラン」準拠） =====
    配列の順＝優先順。時間切れなら下から切る。 */
 const DAYS = {
-  A:  {label:"Day A（プッシュ＋脚）", csv:"A", hint:"木曜 60〜90分。予約枠を先に固め、その後マシン、最後に自重。時間切れなら下から切る。"},
-  B:  {label:"Day B（プル＋ヒンジ）", csv:"B", hint:"月曜 60〜90分。予約枠を先に固め、その後マシン、最後に自重。時間切れなら下から切る。"},
-  ZA: {label:"チョコザップ 朝A（下半身）", csv:"チョコザップ", hint:"火曜の朝20分・任意。"},
-  ZB: {label:"チョコザップ 朝B（上半身）", csv:"チョコザップ", hint:"金曜の朝20分・任意。"}
+  A:  {label:"Day A（プッシュ＋脚）", short:"Day A", cap:"プッシュ＋脚・木", csv:"A", hint:"木曜 60〜90分。予約枠を先に固め、その後マシン、最後に自重。時間切れなら下から切る。"},
+  B:  {label:"Day B（プル＋ヒンジ）", short:"Day B", cap:"プル＋ヒンジ・月", csv:"B", hint:"月曜 60〜90分。予約枠を先に固め、その後マシン、最後に自重。時間切れなら下から切る。"},
+  ZA: {label:"チョコザップ 朝A（下半身）", short:"チョコ 朝A", cap:"下半身・火", csv:"チョコザップ", hint:"火曜の朝20分・任意。"},
+  ZB: {label:"チョコザップ 朝B（上半身）", short:"チョコ 朝B", cap:"上半身・金", csv:"チョコザップ", hint:"金曜の朝20分・任意。"}
 };
 
 const KIND = {
@@ -502,7 +541,15 @@ function saveLog(){
   put(ALLKEY, logAll); put(LOGKEY, log);
 }
 let custom = load(CUSTKEY, []);
+
+/* カスタムDay（貼り付けで追加されたもの）を DAYS にマージ */
+const CUSTDAYKEY = "workout-customdays";
+const APIKEYKEY  = "workout-apikey";
+let custDays = load(CUSTDAYKEY, {});
+Object.keys(custDays).forEach(k => { DAYS[k] = custDays[k]; });
+
 let day = localStorage.getItem(DAYKEY) || defaultDay();
+if (!DAYS[day]) day = defaultDay();
 
 function defaultDay(){
   const w = now.getDay(); // 0=日
@@ -515,7 +562,28 @@ $("today").textContent = TODAY.replace(/-/g,"/") + "（" + "日月火水木金�
 const daysSince = d => Math.round((new Date(TODAY) - new Date(d)) / 86400000);
 
 /* ===== 描画 ===== */
+function renderSeg(){
+  let h = "";
+  Object.keys(DAYS).forEach(k => {
+    const d = DAYS[k];
+    h += '<button data-day="' + esc(k) + '">' + esc(d.short || d.label) +
+         (d.cap ? '<span class="cap">' + esc(d.cap) + '</span>' : '') + '</button>';
+  });
+  $("seg").innerHTML = h;
+  $("f-day").innerHTML = Object.keys(DAYS)
+    .map(k => '<option value="' + esc(k) + '">' + esc(DAYS[k].short || DAYS[k].label) + '</option>').join("");
+  $("f-day").value = day;
+
+  let c = "";
+  Object.keys(custDays).forEach(k => {
+    c += '<span class="daychip">' + esc(DAYS[k].short || k) +
+         '<button data-delday="' + esc(k) + '">削除</button></span>';
+  });
+  $("dayChips").innerHTML = c;
+}
+
 function render(){
+  renderSeg();
   [...$("seg").querySelectorAll("button")].forEach(b => b.classList.toggle("on", b.dataset.day === day));
   $("hint").textContent = DAYS[day].hint;
 
@@ -555,13 +623,18 @@ function render(){
 
     if (rec) {
       h += '<div class="logged">記録済み ' + fmtRec(rec) + '</div>' +
-        '<div class="btns"><button data-act="undo">取り消し</button></div>';
+        (rec.memo ? '<div class="memo-shown">' + esc(rec.memo) + '</div>' : '') +
+        (rec.adv ? '<div class="adv"><span class="advhd">次回の目安</span>' + esc(rec.adv) + '</div>' : '') +
+        '<div class="btns"><button data-act="undo">取り消し</button>' +
+        '<button class="primary" data-act="ai">' + (rec.adv ? '再アドバイス' : '次の重量を相談') + '</button></div>';
     } else {
       h += '<div class="inputs">' +
         '<label>kg<input type="number" inputmode="decimal" data-f="kg" value="' + (t.kg != null ? t.kg : "") + '"></label>' +
         '<label>回<input type="number" inputmode="numeric" data-f="reps" value="' + (t.reps != null ? t.reps : "") + '"></label>' +
         '<label>セット<input type="number" inputmode="numeric" data-f="sets" value="' + (t.sets != null ? t.sets : "") + '"></label>' +
         '</div>' +
+        '<div class="memolbl">やってみた感想（次回のアドバイスに使われます）</div>' +
+        '<textarea class="memoin" data-f="memo" placeholder="例：10回がギリ。3セット目は8回。肩がすくむ感じはなし"></textarea>' +
         (t.disp ? '<div class="setline">目安 ' + t.disp + '（メモ欄に記入されます）</div>' : '') +
         '<div class="btns"><button data-act="open">入力する</button>' +
         '<button class="primary" data-act="log">記録</button>' +
@@ -590,9 +663,10 @@ function buildCsv(){
     .map(o => o.it).forEach(it => {
     const r = log[key(it)];
     if (!r) return;
+    const noteTxt = [r.disp || "", r.memo || ""].filter(Boolean).join("　").replace(/[,\r\n]+/g, "　");
     lines.push([TODAY, DAYS[it.day].csv, it.ex, r.kg != null ? r.kg : "",
       r.reps != null ? r.reps : "", r.sets != null ? r.sets : "",
-      "", "", "", r.disp ? r.disp : ""].join(","));
+      "", "", "", noteTxt].join(","));
   });
   return lines.join("\n");
 }
@@ -616,10 +690,15 @@ $("list").addEventListener("click", e => {
   }
   if (act === "log") {
     const get = f => { const i = card.querySelector('[data-f="' + f + '"]'); return i && i.value !== "" ? Number(i.value) : null; };
+    const memoEl = card.querySelector('[data-f="memo"]');
+    const memo = memoEl ? memoEl.value.trim() : "";
     if (item.target.disp && get("reps") == null) log[k] = {disp: item.target.disp};
     else log[k] = {kg: get("kg"), reps: get("reps"), sets: get("sets")};
+    if (memo) log[k].memo = memo;
     saveLog(); render();
+    return;
   }
+  if (act === "ai") { askAdvice(item, k, el); return; }
 });
 
 /* ===== ポップアップ ===== */
@@ -714,6 +793,167 @@ $("copy2").addEventListener("click", copyOut);
 $("reset").addEventListener("click", () => {
   if (confirm("今日の記録を消します。よろしいですか？")) { log = {}; saveLog(); render(); }
 });
+
+/* ===== Dayの貼り付け取り込み ===== */
+function parsePaste(text){
+  const lines = text.split("\n").map(l => l.replace(/\r$/,"").trim()).filter(l => l && !/^\/\//.test(l));
+  if (!lines.length) return {err:"中身が空です"};
+  let dayName = "", cap = "", start = 0;
+  if (lines[0].charAt(0) === "#") {
+    const parts = lines[0].slice(1).split("|").map(x => x.trim());
+    dayName = parts[0] || ""; cap = parts[1] || "";
+    start = 1;
+  }
+  if (!dayName) return {err:"1行目に「# Day名」が必要です"};
+  const items = [];
+  for (let i = start; i < lines.length; i++){
+    let line = lines[i];
+    if (line.charAt(0) === "#") continue;
+    const c = line.split(",").map(x => x.trim());
+    let name = c[0] || "";
+    if (!name) continue;
+    let kind = null;
+    if (name.charAt(0) === "*") { kind = "free"; name = name.slice(1).trim(); }
+    const numOf = v => (v === undefined || v === "" || /自重|bw/i.test(v)) ? null : (isNaN(Number(v)) ? null : Number(v));
+    items.push({
+      ex: name, kind: kind,
+      kg: numOf(c[1]), reps: numOf(c[2]) != null ? numOf(c[2]) : 10,
+      sets: numOf(c[3]) != null ? numOf(c[3]) : 3,
+      memo: (c.slice(4).join("、") || "").trim()
+    });
+  }
+  if (!items.length) return {err:"種目行が読み取れませんでした"};
+  return {dayName: dayName, cap: cap, items: items};
+}
+
+function slugDay(name){
+  let base = "C" + name.replace(/[^0-9A-Za-z\u3040-\u30ff\u4e00-\u9faf]/g,"").slice(0,10);
+  let k = base, n = 2;
+  while (DAYS[k] && !(custDays[k] && custDays[k].label === name)) { k = base + n; n++; }
+  return k;
+}
+
+$("pasteRun").addEventListener("click", () => {
+  const r = parsePaste($("pasteBox").value);
+  const st = $("pasteStatus");
+  if (r.err) { st.textContent = r.err; st.style.color = "var(--bad)"; return; }
+  const dk = slugDay(r.dayName);
+  custDays[dk] = {label: r.dayName, short: r.dayName, cap: r.cap, csv: r.dayName,
+                  hint: r.cap || "貼り付けで追加したDay", added: TODAY};
+  DAYS[dk] = custDays[dk];
+  put(CUSTDAYKEY, custDays);
+  custom = custom.filter(c => c.day !== dk);
+  r.items.forEach(it => {
+    custom.push({ex: it.ex, day: dk, kind: it.kind || undefined, custom: true, last: null,
+      target: {kg: it.kg, reps: it.reps, sets: it.sets},
+      note: it.memo, form: [], caution: it.memo});
+  });
+  put(CUSTKEY, custom);
+  day = dk; localStorage.setItem(DAYKEY, day);
+  st.textContent = r.dayName + " を追加しました（" + r.items.length + "種目）";
+  st.style.color = "var(--good)";
+  $("pasteBox").value = "";
+  render();
+});
+$("pasteClear").addEventListener("click", () => { $("pasteBox").value = ""; $("pasteStatus").textContent = ""; });
+
+$("dayChips").addEventListener("click", e => {
+  const b = e.target.closest("[data-delday]");
+  if (!b) return;
+  const dk = b.dataset.delday;
+  if (!confirm((DAYS[dk] && DAYS[dk].label || dk) + " を削除しますか？（この日の種目も消えます）")) return;
+  delete custDays[dk]; delete DAYS[dk]; put(CUSTDAYKEY, custDays);
+  custom = custom.filter(c => c.day !== dk); put(CUSTKEY, custom);
+  if (day === dk) { day = defaultDay(); localStorage.setItem(DAYKEY, day); }
+  render();
+});
+
+/* ===== APIキー ===== */
+function apiStat(){
+  const k = localStorage.getItem(APIKEYKEY);
+  $("apiStatus").textContent = k ? "保存済み（末尾 " + k.slice(-4) + "）" : "未設定。設定するとカードに「次の重量を相談」が出ます。";
+  $("apiStatus").style.color = k ? "var(--good)" : "var(--muted)";
+}
+$("apiSave").addEventListener("click", () => {
+  const v = $("apiKey").value.trim();
+  if (!v) { alert("キーを入力してください"); return; }
+  localStorage.setItem(APIKEYKEY, v); $("apiKey").value = ""; apiStat();
+});
+$("apiClear").addEventListener("click", () => {
+  localStorage.removeItem(APIKEYKEY); $("apiKey").value = ""; apiStat();
+});
+apiStat();
+
+/* ===== 次の重量アドバイス（Claude API・端末保存キー） ===== */
+function historyOf(item){
+  const kk = key(item), out = [];
+  Object.keys(logAll).sort().forEach(d => {
+    const r = logAll[d] && logAll[d][kk];
+    if (r) out.push({date: d, kg: r.kg, reps: r.reps, sets: r.sets, memo: r.memo || ""});
+  });
+  if (item.last && item.last.date && !out.some(o => o.date === item.last.date)) {
+    out.unshift({date: item.last.date, kg: item.last.kg, reps: item.last.reps,
+                 sets: item.last.sets, memo: "（カタログ記載の前回値）"});
+  }
+  return out.slice(-8);
+}
+
+const SYS = [
+  "あなたは筋力トレーニングのコーチです。ユーザー本人の記録と感想だけを根拠に、次回の重量と回数の方針を助言します。",
+  "厳守事項:",
+  "1) マシンのスタックの刻み幅は機種ごとに不均等で、こちらは把握していない。数値を断定せず「1段上げる」「据え置き」「1段下げる」で答える。数値を出すときは仮定であることを明示する。",
+  "2) 同名の種目でもジムが違えばマシンが違う。ジムをまたいだ重量の引き継ぎはしない。",
+  "3) 設定セット数×設定回数を組める重量は、1セット目で2回程度の余力が残る重量。全セット完遂できていない場合は重量を上げない。",
+  "4) 感想に痛み・違和感・狙いと違う部位（腰・首・肩がすくむ等）が出ていたら、重量は上げずフォームの見直しを優先する。",
+  "5) 記録が1回だけ、または感想が空の場合はその不足を明示し、断定を避ける。",
+  "6) 日本語で、結論から書き、全体150字以内。前置きと励ましは不要。"
+].join("\n");
+
+function askAdvice(item, k, btn){
+  const apikey = localStorage.getItem(APIKEYKEY);
+  const card = $("list").querySelector('[data-k="' + CSS_esc(k) + '"]');
+  if (!apikey) { alert("先に「次の重量アドバイス」欄でAPIキーを保存してください"); return; }
+  const rec = log[k] || {};
+  const ctx = {
+    種目: item.ex, Day: (DAYS[item.day] && DAYS[item.day].label) || item.day,
+    マシン: item.hs || "", 今日の設定: item.target, 今日の実施: {kg: rec.kg, reps: rec.reps, sets: rec.sets},
+    今日の感想: rec.memo || "", 過去の記録: historyOf(item),
+    種目の注意点: item.caution || ""
+  };
+  const old = btn.textContent;
+  btn.textContent = "問い合わせ中…"; btn.disabled = true;
+  fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": apikey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1000,
+      system: SYS,
+      messages: [{role: "user", content: "次回の重量をどうすべきか助言してください。\n\n" + JSON.stringify(ctx, null, 1)}]
+    })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.error) throw new Error(d.error.message || "APIエラー");
+    const txt = (d.content || []).filter(c => c.type === "text").map(c => c.text).join("\n").trim();
+    if (!txt) throw new Error("空の応答が返りました");
+    log[k] = log[k] || {}; log[k].adv = txt; saveLog(); render();
+  })
+  .catch(e => {
+    btn.textContent = old; btn.disabled = false;
+    if (card) {
+      const box = document.createElement("div");
+      box.className = "adv err"; box.textContent = "取得できませんでした：" + e.message;
+      card.appendChild(box);
+    } else alert("取得できませんでした：" + e.message);
+  });
+}
+function CSS_esc(s){ return String(s).replace(/"/g, '\\"'); }
 
 render();
 
