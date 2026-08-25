@@ -261,9 +261,13 @@ textarea.paste{width:100%;height:130px;padding:10px;font-size:12px;margin-top:8p
 
   <h2>体重の推移</h2>
   <div class="card">
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <input id="bwDateIn" type="date" style="flex:1;min-width:0">
+      <input id="bwInput" type="number" inputmode="decimal" step="0.1" placeholder="体重 kg" style="flex:1;min-width:0">
+    </div>
     <div style="display:flex;gap:8px;margin-bottom:10px">
-      <input id="bwInput" type="number" inputmode="decimal" step="0.1" placeholder="今日の体重 kg" style="flex:1;min-width:0">
-      <button id="bwSave" class="primary">記録</button>
+      <button id="bwSave" class="primary" style="flex:1">記録</button>
+      <button id="bwToday" style="flex:0 0 auto">今日</button>
     </div>
     <table id="bwTable"></table>
   </div>
@@ -1168,11 +1172,21 @@ function renderLog(){
 
   /* ===== 体重の記録・バックアップ書き出し（初回のみ登録） ===== */
   if (!bound) {
+  function todayStr(){
+    const t = new Date(), p = n => String(n).padStart(2,"0");
+    return t.getFullYear() + "-" + p(t.getMonth()+1) + "-" + p(t.getDate());
+  }
+  $("bwDateIn").value = todayStr();
+  $("bwDateIn").max = todayStr();
+  $("bwToday").addEventListener("click", function(){ $("bwDateIn").value = todayStr(); });
+
   $("bwSave").addEventListener("click", function(){
     const v = Number($("bwInput").value);
-    if (!v) return;
-    const t = new Date(), p = n => String(n).padStart(2,"0");
-    const d = t.getFullYear() + "-" + p(t.getMonth()+1) + "-" + p(t.getDate());
+    if (!v) { alert("体重を入力してください"); return; }
+    const d = $("bwDateIn").value || todayStr();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { alert("日付を選んでください"); return; }
+    const dup = BODYWEIGHT.filter(function(b){ return b.date === d; })[0];
+    if (dup && !confirm(md(d) + " は既に " + dup.kg.toFixed(1) + "kg で記録されています。上書きしますか？")) return;
     LOCALBW[d] = v;
     try { localStorage.setItem("workout-bw", JSON.stringify(LOCALBW)); } catch(e){}
     location.reload();
