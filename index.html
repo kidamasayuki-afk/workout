@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -128,11 +129,11 @@ tr:last-child td{border-bottom:none}
 section{display:none}
 section.on{display:block}
 body.log-view .bar{display:none}
-.memoin{display:none;width:100%;padding:9px 8px;font-size:16px;margin-top:8px;
-  min-height:54px;line-height:1.5;resize:vertical}
-.card.open .memoin{display:block}
-.memolbl{display:none;font-size:10px;color:var(--muted);margin-top:8px}
-.card.open .memolbl{display:block}
+.memoin{display:block;width:100%;padding:8px;font-size:16px;margin-top:8px;
+  min-height:38px;height:38px;line-height:1.4;resize:none;overflow:hidden;
+  transition:height .12s ease;background:var(--bg)}
+.memoin:focus,.card.open .memoin{height:76px;min-height:76px;overflow:auto;resize:vertical}
+.memolbl{display:none}
 .memo-shown{font-size:12px;color:var(--muted);margin-top:4px;white-space:pre-wrap}
 .adv{margin-top:8px;padding:9px 10px;border:1px solid var(--accent);border-radius:8px;
   font-size:13px;line-height:1.65;white-space:pre-wrap;background:var(--bg)}
@@ -633,8 +634,7 @@ function render(){
         '<label>回<input type="number" inputmode="numeric" data-f="reps" value="' + (t.reps != null ? t.reps : "") + '"></label>' +
         '<label>セット<input type="number" inputmode="numeric" data-f="sets" value="' + (t.sets != null ? t.sets : "") + '"></label>' +
         '</div>' +
-        '<div class="memolbl">やってみた感想（次回のアドバイスに使われます）</div>' +
-        '<textarea class="memoin" data-f="memo" placeholder="例：10回がギリ。3セット目は8回。肩がすくむ感じはなし"></textarea>' +
+        '<textarea class="memoin" data-f="memo" placeholder="感想（例：10回がギリ。3セット目は8回）"></textarea>' +
         (t.disp ? '<div class="setline">目安 ' + t.disp + '（メモ欄に記入されます）</div>' : '') +
         '<div class="btns"><button data-act="open">入力する</button>' +
         '<button class="primary" data-act="log">記録</button>' +
